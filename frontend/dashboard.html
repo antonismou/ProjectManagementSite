@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <title>PMS - Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top-bar">
+    <h1>Dashboard</h1>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="teams.html">Ομάδες</a>
+      <a href="my-tasks.html">Δικές μου Εργασίες</a>
+      <a href="index.html" onclick="logout(); return false;">Αποσύνδεση</a>
+    </nav>
+
+
+  </header>
+
+  <main class="dashboard">
+    <section class="stats">
+      <div class="stat-card">
+        <h3>Σύνολο Tasks</h3>
+        <p id="stat-total">0</p>
+      </div>
+      <div class="stat-card">
+        <h3>TODO</h3>
+        <p id="stat-todo">0</p>
+      </div>
+      <div class="stat-card">
+        <h3>IN PROGRESS</h3>
+        <p id="stat-inprogress">0</p>
+      </div>
+      <div class="stat-card">
+        <h3>DONE</h3>
+        <p id="stat-done">0</p>
+      </div>
+    </section>
+
+    <section class="kanban">
+      <div class="column">
+        <h2>TODO</h2>
+        <div id="col-todo" class="task-list"></div>
+      </div>
+      <div class="column">
+        <h2>IN PROGRESS</h2>
+        <div id="col-inprogress" class="task-list"></div>
+      </div>
+      <div class="column">
+        <h2>DONE</h2>
+        <div id="col-done" class="task-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/dashboard.js"></script>
+
+</body>
+</html>

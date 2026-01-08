@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <title>PMS - Login</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top-bar">
+    <h1>Project Management System</h1>
+  </header>
+
+  <main class="center-box">
+    
+    <form id="login-form" class="form-card">
+        <h2>Login</h2>
+      <label>
+        Username
+        <input type="text" name="username" required>
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" required>
+      </label>
+      <button type="submit">Σύνδεση</button>
+      <p>Δεν έχεις λογαριασμό; <a href="#" id="go-signup">Εγγραφή</a></p>
+    </form>
+
+    
+
+    <form id="signup-form" class="form-card hidden">
+      <h2>Sign Up</h2>
+      <label>
+        Username
+        <input type="text" name="username" required>
+      </label>
+      <label>
+        Email
+        <input type="email" name="email" required>
+      </label>
+      <label>
+        Όνομα
+        <input type="text" name="first_name" required>
+      </label>
+      <label>
+        Επώνυμο
+        <input type="text" name="last_name" required>
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" required>
+      </label>
+      <button type="submit">Εγγραφή</button>
+      <p class="note">Ο λογαριασμός χρειάζεται έγκριση από Admin.</p>
+      <p>Έχεις ήδη λογαριασμό; <a href="#" id="go-login">Login</a></p>
+    </form>
+    
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/session.js"></script>
+</body>
+</html>

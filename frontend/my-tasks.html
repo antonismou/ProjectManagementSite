@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <title>Εργασίες</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav><!-- ίδιο nav --></nav>
+  <div class="tasks-page">
+    <h2>Οι Εργασίες μου</h2>
+    <div id="tasks-list"></div>
+  </div>
+  <button id="create-task-btn">+ Νέα Εργασία</button>
+
+<div id="task-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>Νέα Εργασία</h2>
+    <form id="create-task-form">
+      <input name="title" placeholder="Τίτλος" required>
+      <select name="priority">
+        <option>LOW</option>
+        <option>MEDIUM</option>
+        <option>HIGH</option>
+      </select>
+      <input name="due_date" type="date" required>
+      <input name="team_id" type="number" placeholder="Team ID" value="1">
+      <div class="modal-buttons">
+        <button type="submit">Δημιουργία</button>
+        <button type="button" id="close-modal">Άκυρο</button>
+      </div>
+    </form>
+  </div>
+</div>
+  <script src="js/api.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/tasks.js"></script>  <!-- Το code που σου έδωσα -->
+</body>
+</html>
