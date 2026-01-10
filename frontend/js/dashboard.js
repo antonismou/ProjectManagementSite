@@ -16,6 +16,7 @@ const colTodo = document.getElementById("col-todo");
 const colInProgress = document.getElementById("col-inprogress");
 const colDone = document.getElementById("col-done");
 
+
 // demo tasks – αργότερα θα έρχονται από TASK_SERVICE_URL
 const demoTasks = [
   { id: 1, title: "Στήσιμο User Service", status: "TODO", priority: "HIGH", due_date: "2026-01-15" },

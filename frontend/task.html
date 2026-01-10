@@ -2,30 +2,29 @@
 <html lang="el">
 <head>
   <meta charset="UTF-8">
-  <title>Δικές μου Εργασίες - Dashboard</title>
+  <title>Task Details</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="top-bar">
-    <h1>Δικές μου Εργασίες</h1>
+    <h1>Task Details</h1>
     <nav>
       <a href="dashboard.html">Dashboard</a>
       <a href="profile.html">Profile</a>
       <a href="teams.html">Ομάδες</a>
       <a href="my-tasks.html">Δικές μου Εργασίες</a>
-      <span id="admin-link-container"></span>
       <a href="index.html" onclick="logout(); return false;">Αποσύνδεση</a>
     </nav>
   </header>
 
-  <main class="dashboard">
-    <section class="tasks-list-section">
-      <div id="tasks-list" class="task-list"></div>
-    </section>
+  <main class="task-page">
+    <div id="task-content" class="task-detail"></div>
+    <div id="comments" class="comments"></div>
+    <div id="attachments" class="attachments"></div>
   </main>
 
   <script src="js/api.js"></script>
   <script src="js/session.js"></script>
-  <script src="js/tasks.js"></script>
+  <script src="js/task.js"></script>
 </body>
 </html>

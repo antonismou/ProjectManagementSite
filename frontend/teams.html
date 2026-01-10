@@ -38,11 +38,36 @@
           Περιγραφή
           <textarea name="description" required></textarea>
         </label>
+          <label>
+            Team Leader ID (optional, admin only to set/change)
+            <input type="number" name="leader_id">
+          </label>
+          <!-- Members are managed via the dedicated Members modal (Add/Remove) -->
         <div class="modal-buttons">
-          <button type="submit">Δημιουργία</button>
-          <button type="button" id="close-modal">Ακύρωση</button>
+          <button type="submit" class="btn-primary">Δημιουργία</button>
+          <button type="button" id="close-modal" class="btn-secondary">Ακύρωση</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal για προβολή ομάδας -->
+  <div id="team-view-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Λεπτομέρειες Ομάδας</h3>
+      <div id="team-view-content">
+        Φόρτωση...
+      </div>
+      <div style="margin-top:1rem; text-align:right;"><button id="close-view-modal" class="btn-primary">Κλείσε</button></div>
+    </div>
+  </div>
+
+  <!-- Modal για διαχείριση μελών (αφαίρεση) -->
+  <div id="team-members-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Διαχείριση Μελών</h3>
+      <div id="team-members-content">Φόρτωση...</div>
+      <div style="margin-top:1rem; text-align:right;"><button id="close-members-modal" class="btn-secondary">Κλείσε</button></div>
     </div>
   </div>
 

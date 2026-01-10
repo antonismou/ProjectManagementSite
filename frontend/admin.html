@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admin - Users</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div>
+        <h1>Admin - User Management</h1>
+        <p class="note">Manage users, change roles, and remove accounts (ADMIN only)</p>
+      </div>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a id="logout-link" href="#">Logout</a>
+      </nav>
+    </header>
+
+    <main class="admin-page">
+      <section id="notice" class="hidden"></section>
+
+      <div class="controls">
+        <button id="refresh-btn" class="btn-primary">Refresh user list</button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="users-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Active</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/session.js"></script>
+    <script src="/js/admin.js"></script>
+  </body>
+</html>

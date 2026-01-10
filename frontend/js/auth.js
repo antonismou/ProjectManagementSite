@@ -35,6 +35,7 @@ if (loginForm) {
       });
       localStorage.setItem("user", JSON.stringify(result.user));
       localStorage.setItem("token", result.token);
+      // After login always go to dashboard
       window.location.href = "dashboard.html";
     } catch (err) {
       alert(err.error || "Login failed");
@@ -57,7 +58,7 @@ if (signupForm) {
 
     try {
       await apiRequest(USER_SERVICE_URL, "/signup", "POST", data);
-      alert("Εγγραφή επιτυχής. Μπορείς τώρα να κάνεις login.");
+      alert("Εγγραφή επιτυχής. Ο λογαριασμός σου θα ενεργοποιηθεί από τον διαχειριστή. Παρακαλώ περίμενε.");
       signupForm.reset();
       signupForm.classList.add("hidden");
       loginForm.classList.remove("hidden");

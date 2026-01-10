@@ -7,8 +7,33 @@ async function apiRequest(baseUrl, path, method = "GET", body = null, token = nu
   console.log("apiRequest:", baseUrl + path, method, {token: !!token});  // DEBUG
   
   const headers = { "Content-Type": "application/json" };
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
+  // Authorization token: prefer explicit param, otherwise read from localStorage
+  let authToken = token;
+  if (!authToken) {
+    try {
+      authToken = localStorage.getItem("token");
+    } catch (e) {
+      authToken = null;
+    }
+  }
+  if (authToken) {
+    headers["Authorization"] = "Bearer " + authToken;
+  }
+
+  // propagate user role and id to backend services so they can enforce permissions
+  try {
+    const raw = localStorage.getItem("user");
+    if (raw) {
+      const user = JSON.parse(raw);
+      if (user && user.role) {
+        headers["X-User-Role"] = user.role;
+      }
+      if (user && user.id) {
+        headers["X-User-Id"] = String(user.id);
+      }
+    }
+  } catch (e) {
+    // ignore parsing errors
   }
 
   try {
