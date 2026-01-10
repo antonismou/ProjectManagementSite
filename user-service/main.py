@@ -90,6 +90,32 @@ class UserHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
+        # GET /users/public -> list minimal user info for selection (available to authenticated users)
+        elif self.path == "/users/public":
+            # require a user id header (set by frontend via X-User-Id) or Authorization
+            header_uid = self.headers.get('X-User-Id') or self.headers.get('Authorization')
+            if not header_uid:
+                self._set_headers(403)
+                self.wfile.write(json.dumps({"error": "Forbidden"}).encode('utf-8'))
+                return
+            try:
+                conn = get_db_conn()
+                cur = conn.cursor(dictionary=True)
+                # return only minimal fields for dropdowns
+                cur.execute("SELECT id, username, first_name, last_name, active FROM users ORDER BY username ASC")
+                rows = cur.fetchall()
+                self._set_headers(200)
+                self.wfile.write(json.dumps(rows, default=str).encode('utf-8'))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+            finally:
+                try:
+                    cur.close()
+                    conn.close()
+                except Exception:
+                    pass
+
         # GET /users/<id> -> view single user (ADMIN or the user themself)
         elif self.path.startswith("/users/"):
             parts = self.path.split("/")

@@ -80,26 +80,17 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
 
-        // add member handler (prompt for id(s))
+        // add member handler - open members modal (select dropdown) instead of free-text prompt
         const addBtn = teamCard.querySelector('.add-member');
         if (addBtn) {
           addBtn.addEventListener('click', async () => {
             const id = addBtn.dataset.id;
-            const raw = prompt('Enter member id(s) to add (comma separated):');
-            if (!raw) return;
-            const ids = raw.split(',').map(s => Number(s.trim())).filter(n => !Number.isNaN(n));
-            if (!ids.length) { alert('No valid ids provided'); return; }
             try {
               const token = localStorage.getItem('token');
-              // fetch current team
               const teamDetail = await apiRequest(TEAM_SERVICE_URL, `/teams/${id}`, 'GET', null, token);
-              const existing = (teamDetail.members || []).map(m => m.id);
-              const merged = Array.from(new Set(existing.concat(ids)));
-              await apiRequest(TEAM_SERVICE_URL, `/teams/${id}`, 'PUT', { members: merged }, token);
-              alert('Members added');
-              loadTeams();
+              openMembersModal(teamDetail);
             } catch (err) {
-              alert(err.error || 'Failed to add members');
+              alert(err.error || 'Failed to load team members');
             }
           });
         }
@@ -146,6 +137,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const submitBtn = createTeamForm.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.textContent = 'Δημιουργία';
       createTeamForm.reset();
+      // populate leader select for creation
+      (async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const users = await apiRequest(USER_SERVICE_URL, '/users/public', 'GET', null, token);
+          const leaderSelect = document.getElementById('leader-select');
+          if (leaderSelect) {
+            leaderSelect.innerHTML = '<option value="">-</option>' + users.map(u => `<option value="${u.id}">${u.username} (${u.first_name || ''} ${u.last_name || ''})${u.active ? '' : ' (inactive)'}</option>`).join('');
+          }
+        } catch (e) {
+          console.error('Failed to load users for leader select', e);
+        }
+      })();
       teamModal.classList.remove("hidden");
     });
   }
@@ -176,9 +180,25 @@ document.addEventListener("DOMContentLoaded", () => {
         if (editingTeamId) {
           await apiRequest(TEAM_SERVICE_URL, `/teams/${editingTeamId}`, "PUT", data, token);
           alert("Ομάδα ενημερώθηκε!");
+          // if leader changed and a leader id is provided, attempt to set user's role to TEAM_LEADER
+          if (data.leader_id) {
+            try {
+              await apiRequest(USER_SERVICE_URL, `/users/${data.leader_id}/role`, 'PUT', { role: 'TEAM_LEADER' }, token);
+            } catch (e) {
+              console.error('Failed to set user role to TEAM_LEADER', e);
+            }
+          }
         } else {
           await apiRequest(TEAM_SERVICE_URL, "/teams", "POST", data, token);
           alert("Ομάδα δημιουργήθηκε!");
+          // if leader selected, promote them to TEAM_LEADER
+          if (data.leader_id) {
+            try {
+              await apiRequest(USER_SERVICE_URL, `/users/${data.leader_id}/role`, 'PUT', { role: 'TEAM_LEADER' }, token);
+            } catch (e) {
+              console.error('Failed to set user role to TEAM_LEADER', e);
+            }
+          }
         }
         createTeamForm.reset();
         teamModal.classList.add("hidden");
@@ -199,9 +219,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (submitBtn) submitBtn.textContent = 'Αποθήκευση';
     createTeamForm.querySelector('input[name="name"]').value = team.name || '';
     createTeamForm.querySelector('textarea[name="description"]').value = team.description || '';
-    // populate leader_id field if present
-    const leaderInput = createTeamForm.querySelector('input[name="leader_id"]');
-    if (leaderInput) leaderInput.value = team.leader_id || '';
+    // populate leader select if present
+    (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const users = await apiRequest(USER_SERVICE_URL, '/users/public', 'GET', null, token);
+        const leaderSelect = document.getElementById('leader-select');
+        if (leaderSelect) {
+          leaderSelect.innerHTML = '<option value="">-</option>' + users.map(u => `<option value="${u.id}">${u.username} (${u.first_name || ''} ${u.last_name || ''})${u.active ? '' : ' (inactive)'}</option>`).join('');
+          leaderSelect.value = team.leader_id || '';
+        }
+      } catch (e) {
+        console.error('Failed to load users for leader select', e);
+      }
+    })();
     // members are managed via the dedicated members modal
     teamModal.classList.remove('hidden');
   }
@@ -227,8 +258,8 @@ document.addEventListener("DOMContentLoaded", () => {
       html += `<div>No members</div>`;
     }
 
-    // add quick add-by-id form
-    html += `<div style="margin-top:0.8rem"><label>Add member by ID: <input id="add-member-id" type="number" placeholder="user id"></label> <button id="add-member-confirm" data-team="${team.id}">Add</button></div>`;
+  // add quick add-by-select form (fetch users and populate dropdown)
+  html += `<div style="margin-top:0.8rem"><label>Add member: <select id="add-member-select"></select></label> <button id="add-member-confirm" data-team="${team.id}">Add</button></div>`;
 
     teamMembersContent.innerHTML = html;
     if (teamMembersModal) teamMembersModal.classList.remove('hidden');
@@ -257,13 +288,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const addConfirm = teamMembersContent.querySelector('#add-member-confirm');
     if (addConfirm) {
+      // populate select with users
+      (async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const users = await apiRequest(USER_SERVICE_URL, '/users/public', 'GET', null, token);
+          const select = teamMembersContent.querySelector('#add-member-select');
+          if (select) {
+            // show all users, mark existing as disabled
+            const existingIds = (team.members || []).map(m => m.id);
+            select.innerHTML = `<option value="">-- select user --</option>`;
+            users.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = u.id;
+              opt.textContent = `${u.username} (${u.first_name || ''} ${u.last_name || ''})${u.active ? '' : ' (inactive)'}`;
+              if (existingIds.includes(u.id)) opt.disabled = true;
+              select.appendChild(opt);
+            });
+          }
+        } catch (err) {
+          // ignore population errors - user can still paste id manually (not shown) or admin can use API
+          console.error('Failed to load users for dropdown', err);
+        }
+      })();
+
       addConfirm.addEventListener('click', async () => {
         const teamId = addConfirm.dataset.team;
-        const input = teamMembersContent.querySelector('#add-member-id');
-        if (!input) return;
-        const raw = input.value;
+        const select = teamMembersContent.querySelector('#add-member-select');
+        if (!select) return;
+        const raw = select.value;
         const idToAdd = Number(raw);
-        if (Number.isNaN(idToAdd)) { alert('Invalid id'); return; }
+        if (!raw || Number.isNaN(idToAdd)) { alert('Please choose a user'); return; }
         try {
           const token = localStorage.getItem('token');
           const teamDetail = await apiRequest(TEAM_SERVICE_URL, `/teams/${teamId}`, 'GET', null, token);
@@ -327,6 +382,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // if current user is the team leader, show create form
     const isLeader = currentUser && currentUser.role === 'TEAM_LEADER' && Number(currentUser.id) === Number(team.leader_id);
     if (isLeader) {
+      // build options for assign-to dropdown from team members
+      const assignOptions = (team.members && team.members.length) ? team.members.map(m => `<option value="${m.id}">${m.username} (${(m.first_name||'') + ' ' + (m.last_name||'')})</option>`).join('') : '<option value="">-</option>';
       html += `<div style="margin-top:0.8rem" id="team-create-task">`;
       html += `<h4>Δημιουργία Εργασίας για αυτή την ομάδα</h4>`;
       html += `<form id="team-create-task-form">
@@ -334,7 +391,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <textarea name="description" placeholder="Περιγραφή"></textarea>
         <label>Priority: <select name="priority"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></label>
         <label>Due date: <input type="date" name="due_date" required></label>
-        <label>Assign to (user id): <input type="number" name="assigned_to"></label>
+        <label>Assign to: <select name="assigned_to"><option value="">-</option>${assignOptions}</select></label>
         <input type="hidden" name="team_id" value="${team.id}">
         <div style="margin-top:0.5rem"><button type="submit">Δημιουργία</button></div>
       </form>`;

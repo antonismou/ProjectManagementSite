@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <textarea name="description">${escapeHtml(task.description || '')}</textarea>
         <label>Priority: <select name="priority"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></label>
         <label>Due date: <input type="date" name="due_date" value="${task.due_date || ''}"></label>
-        <label>Assign to (user id): <input type="number" name="assigned_to" value="${task.assigned_to || ''}"></label>
+  <label>Assign to: <select name="assigned_to" id="edit-assigned-select"><option value="">-</option></select></label>
         <div style="margin-top:0.5rem"><button type="submit">Save</button></div>
       </form>`;
     }
@@ -56,6 +56,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (isAdmin || isLeader) {
       const form = document.getElementById('edit-task-form');
+      // populate assigned_to select with team members
+      (async () => {
+        try {
+          const token = localStorage.getItem('token');
+          const teamResp = await apiRequest(TEAM_SERVICE_URL, `/teams/${task.team_id}`, 'GET', null, token);
+          const select = document.getElementById('edit-assigned-select');
+          if (select && teamResp && teamResp.members) {
+            // clear existing options except the default
+            select.innerHTML = '<option value="">-</option>' + teamResp.members.map(m => `<option value="${m.id}">${m.username} ${(m.first_name||'') + ' ' + (m.last_name||'')}</option>`).join('');
+            if (task.assigned_to) select.value = String(task.assigned_to);
+          }
+        } catch (e) {
+          // ignore populate errors
+          console.error('Failed to populate assigned-to select', e);
+        }
+      })();
       if (form) {
         form.addEventListener('submit', async (e) => {
           e.preventDefault();
