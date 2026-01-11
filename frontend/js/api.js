@@ -1,7 +1,27 @@
+
+let EXTERNAL_IP;
+async function initExternalIP() {
+  try {
+    const res = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip', {
+      headers: { 'Metadata-Flavor': 'Google' }
+    });
+    EXTERNAL_IP = await res.text();
+    console.log('External IP fetched:', EXTERNAL_IP);
+  } catch (e) {
+    console.warn('Fallback to localhost - not on GCP VM');
+    EXTERNAL_IP = 'localhost'; // Or your dev IP
+  }
+}
+
+// Updated service URLs using external IP
+async function getUserServiceUrl() { return `http://${EXTERNAL_IP}:8080`; }
+async function getTeamServiceUrl() { return `http://${EXTERNAL_IP}:8081`; }
+async function getTaskServiceUrl() { return `http://${EXTERNAL_IP}:8082`; }
+
 // Ρύθμιση URLs των microservices (προς το παρόν placeholders)
-const USER_SERVICE_URL = "http://10.164.0.3:8080";
-const TEAM_SERVICE_URL = "http://10.164.0.3:8081";
-const TASK_SERVICE_URL = "http://10.164.0.3:8082";
+const USER_SERVICE_URL = getUserServiceUrl();
+const TEAM_SERVICE_URL = getTeamServiceUrl();
+const TASK_SERVICE_URL = getTaskServiceUrl();
 
 async function apiRequest(baseUrl, path, method = "GET", body = null, token = null) {
   console.log("apiRequest:", baseUrl + path, method, {token: !!token});  // DEBUG
