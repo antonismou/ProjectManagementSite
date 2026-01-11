@@ -130,6 +130,7 @@ class UserHandler(BaseHTTPRequestHandler):
 
             try:
                 user_ids = [int(i) for i in ids_str.split(',')]
+                print(f"DEBUG: user-service - Received user_ids for GET /users?ids=: {user_ids}")
             except ValueError:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": "Invalid 'ids' format"}).encode("utf-8"))
@@ -150,9 +151,11 @@ class UserHandler(BaseHTTPRequestHandler):
                 placeholders = ','.join(['%s'] * len(user_ids))
                 cur.execute(f"SELECT id, username, first_name, last_name, active FROM users WHERE id IN ({placeholders})", tuple(user_ids))
                 rows = cur.fetchall()
+                print(f"DEBUG: user-service - Fetched rows for user_ids {user_ids}: {rows}")
                 self._set_headers(200)
                 self.wfile.write(json.dumps(rows, default=str).encode('utf-8'))
             except Exception as e:
+                print(f"ERROR: user-service - Exception in GET /users?ids=: {e}")
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             finally:
