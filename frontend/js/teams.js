@@ -27,8 +27,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const teamModal = new bootstrap.Modal(document.getElementById('team-modal'));
     const teamViewModal = new bootstrap.Modal(document.getElementById('team-view-modal'));
     const teamMembersModal = new bootstrap.Modal(document.getElementById('team-members-modal'));
+    const taskModal = new bootstrap.Modal(document.getElementById('task-modal')); // New task modal
 
     let editingTeamId = null;
+    let currentTeamId = null; // Store the ID of the team currently being viewed
 
     // Hide create button for non-admins
     if (currentUser.role !== 'ADMIN') {
@@ -96,6 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     async function handleViewTeam(e) {
         const teamId = e.target.dataset.id;
+        currentTeamId = teamId; // Store the current team ID
         try {
             const token = localStorage.getItem('token');
             const team = await apiRequest(TEAM_SERVICE_URL, `/teams/${teamId}`, 'GET', null, token);
@@ -107,6 +110,9 @@ document.addEventListener("DOMContentLoaded", () => {
             let membersHtml = team.members && team.members.length ? team.members.map(m => `<li>${m.first_name} ${m.last_name} (${m.username})</li>`).join('') : '<li>No members</li>';
             let tasksHtml = teamTasks.length ? teamTasks.map(t => `<li><a href="task.html?id=${t.id}">${t.title}</a> - <span class="badge bg-info">${t.status}</span></li>`).join('') : '<li>No tasks for this team</li>';
 
+            const canCreateTask = currentUser && (currentUser.role === 'ADMIN' || (currentUser.role === 'TEAM_LEADER' && Number(currentUser.id) === Number(team.leader_id)));
+            const createTaskButton = canCreateTask ? `<button id="create-task-btn" class="btn btn-sm btn-success mb-3"><i class="fas fa-plus me-2"></i> Create New Task</button>` : '';
+
             contentEl.innerHTML = `
                 <h4>${team.name}</h4>
                 <p>${team.description}</p>
@@ -116,8 +122,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 <h6>Members</h6>
                 <ul>${membersHtml}</ul>
                 <h6>Tasks</h6>
+                ${createTaskButton}
                 <ul>${tasksHtml}</ul>
             `;
+            
+            if (canCreateTask) {
+                document.getElementById('create-task-btn').addEventListener('click', () => openTaskModal(teamId));
+            }
             teamViewModal.show();
         } catch (err) {
             showToast(err.error || 'Failed to load team details', true);
@@ -249,6 +260,29 @@ document.addEventListener("DOMContentLoaded", () => {
         teamModal.show();
     }
 
+    async function openTaskModal(teamId) {
+        document.getElementById('create-task-form').reset();
+        document.getElementById('task-team-id').value = teamId; // Set the team_id for the new task
+        
+        const assignedToSelect = document.getElementById('task-assigned-to');
+        assignedToSelect.innerHTML = '<option value="">- Not Assigned -</option>'; // Default option
+
+        try {
+            const users = await apiRequest(USER_SERVICE_URL, '/users/public', 'GET', null, localStorage.getItem('token'));
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.username} (${user.first_name} ${user.last_name})`;
+                assignedToSelect.appendChild(option);
+            });
+        } catch (err) {
+            console.error("Failed to load users for task assignment:", err);
+            showToast('Failed to load users for task assignment.', true);
+        }
+        
+        taskModal.show();
+    }
+
     createTeamBtn.addEventListener("click", () => openCreateEditModal());
 
     createTeamForm.addEventListener("submit", async (e) => {
@@ -270,6 +304,32 @@ document.addEventListener("DOMContentLoaded", () => {
             loadTeams();
         } catch (err) {
             showToast(err.error || "Failed to save team", true);
+        }
+    });
+
+    // Handle task creation form submission
+    document.getElementById('create-task-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const taskData = {
+            title: formData.get('title'),
+            description: formData.get('description'),
+            status: formData.get('status'),
+            priority: formData.get('priority'),
+            due_date: formData.get('due_date') || null,
+            team_id: parseInt(formData.get('team_id')),
+            assigned_to: formData.get('assigned_to') ? parseInt(formData.get('assigned_to')) : null,
+        };
+
+        try {
+            await apiRequest(TASK_SERVICE_URL, '/tasks', 'POST', taskData, localStorage.getItem('token'));
+            showToast('Task created successfully!');
+            taskModal.hide();
+            // Refresh the team view to show the new task
+            // We need to simulate the event object for handleViewTeam
+            handleViewTeam({ target: { dataset: { id: currentTeamId } } });
+        } catch (err) {
+            showToast(err.error || 'Failed to create task', true);
         }
     });
 

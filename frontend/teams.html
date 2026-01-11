@@ -120,6 +120,59 @@
         </div>
     </div>
 
+    <!-- Create Task Modal -->
+    <div class="modal fade" id="task-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-task-form">
+                        <input type="hidden" id="task-team-id" name="team_id">
+                        <div class="mb-3">
+                            <label for="task-title" class="form-label">Title</label>
+                            <input type="text" class="form-control" id="task-title" name="title" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="task-description" class="form-label">Description</label>
+                            <textarea class="form-control" id="task-description" name="description"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="task-status" class="form-label">Status</label>
+                            <select class="form-select" id="task-status" name="status">
+                                <option value="TODO">To Do</option>
+                                <option value="IN_PROGRESS">In Progress</option>
+                                <option value="DONE">Done</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="task-priority" class="form-label">Priority</label>
+                            <select class="form-select" id="task-priority" name="priority">
+                                <option value="LOW">Low</option>
+                                <option value="MEDIUM">Medium</option>
+                                <option value="HIGH">High</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="task-due-date" class="form-label">Due Date</label>
+                            <input type="date" class="form-control" id="task-due-date" name="due_date">
+                        </div>
+                        <div class="mb-3">
+                            <label for="task-assigned-to" class="form-label">Assigned To (optional)</label>
+                            <select class="form-select" id="task-assigned-to" name="assigned_to"><option value="">-</option></select>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Task</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
 
