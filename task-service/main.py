@@ -4,6 +4,9 @@ import cgi
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import mysql.connector.pooling
+import requests
+
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8080")
 
 # Database connection pool
 db_pool = mysql.connector.pooling.MySQLConnectionPool(
@@ -20,6 +23,19 @@ def get_db_conn():
     return db_pool.get_connection()
 
 class TaskHandler(BaseHTTPRequestHandler):
+    def _fetch_user_details_map(self, user_ids):
+        if not user_ids:
+            return {}
+        try:
+            ids_str = ",".join(map(str, user_ids))
+            response = requests.get(f"{USER_SERVICE_URL}/users?ids={ids_str}")
+            response.raise_for_status() # Raise an exception for HTTP errors
+            users_data = response.json()
+            return {user['id']: user for user in users_data}
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching user details from user-service: {e}")
+            return {}
+    
     def _set_headers(self, status=200, content_type="application/json"):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -75,7 +91,17 @@ class TaskHandler(BaseHTTPRequestHandler):
 
                     ccur = conn.cursor(dictionary=True)
                     ccur.execute("SELECT id, author_id, content, created_at FROM comments WHERE task_id=%s ORDER BY created_at ASC", (task_id,))
-                    task['comments'] = ccur.fetchall()
+                    comments = ccur.fetchall()
+                    
+                    author_ids = list(set([comment['author_id'] for comment in comments if 'author_id' in comment]))
+                    user_map = self._fetch_user_details_map(author_ids)
+
+                    for comment in comments:
+                        author_id = comment.get('author_id')
+                        user = user_map.get(author_id)
+                        comment['author_name'] = user.get('username', 'Unknown') if user else 'Unknown' # Use username or 'Unknown'
+
+                    task['comments'] = comments
                     ccur.execute("SELECT id, author_id, url, original_name, created_at FROM attachments WHERE task_id=%s ORDER BY created_at ASC", (task_id,))
                     task['attachments'] = ccur.fetchall()
                     ccur.close()
@@ -186,8 +212,59 @@ class TaskHandler(BaseHTTPRequestHandler):
         pass
 
     def handle_comment_creation(self):
-        # ... (implementation for creating a comment)
-        pass
+        try:
+            task_id = int(self.path.split('/')[-2])
+        except (IndexError, ValueError):
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": "Invalid task ID"}).encode("utf-8"))
+            return
+
+        conn = None
+        cur = None
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+            data = json.loads(body.decode("utf-8"))
+
+            content = data.get("content")
+            author_id = int(self.headers.get("X-User-Id", "0"))
+
+            if not content:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Comment content is required"}).encode("utf-8"))
+                return
+            if not author_id:
+                self._set_headers(401)
+                self.wfile.write(json.dumps({"error": "Unauthorized: X-User-Id header missing"}).encode("utf-8"))
+                return
+            
+            conn = get_db_conn()
+            cur = conn.cursor()
+            cur.execute("INSERT INTO comments (task_id, author_id, content) VALUES (%s, %s, %s)",
+                        (task_id, author_id, content))
+            conn.commit()
+            
+            comment_id = cur.lastrowid
+            cur.execute("SELECT id, author_id, content, created_at FROM comments WHERE id=%s", (comment_id,))
+            new_comment = cur.fetchone()
+
+            self._set_headers(201)
+            self.wfile.write(json.dumps(new_comment, default=str).encode("utf-8"))
+
+        except json.JSONDecodeError:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": "Invalid JSON payload"}).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(500)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        finally:
+            try:
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
 
     def do_PUT(self):
         if not self.path.startswith("/tasks/"):
