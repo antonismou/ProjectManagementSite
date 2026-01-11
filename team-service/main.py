@@ -1,6 +1,7 @@
 import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse, parse_qs
 import mysql.connector.pooling
 
 # db_pool will be initialized in the run() function
@@ -24,7 +25,39 @@ class TeamHandler(BaseHTTPRequestHandler):
         self._set_headers(200)
 
     def do_GET(self):
-        if self.path == "/teams" or self.path.startswith("/teams/"):
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+        
+        if path == "/teams/count":
+            # Accessible to any authenticated user
+            if not self.headers.get("X-User-Id"):
+                self._set_headers(401)
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            
+            conn = None
+            cur = None
+            try:
+                conn = get_db_conn()
+                cur = conn.cursor(dictionary=True)
+                cur.execute("SELECT COUNT(*) as count FROM teams")
+                result = cur.fetchone()
+                self._set_headers(200)
+                self.wfile.write(json.dumps(result).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            finally:
+                try:
+                    if 'cur' in locals() and cur:
+                        cur.close()
+                    if 'conn' in locals() and conn: 
+                        conn.close()
+                except Exception:
+                    pass
+            return
+
+        if path == "/teams" or path.startswith("/teams/"):
             role = self.headers.get("X-User-Role") or "MEMBER"
             try:
                 requester_id = int(self.headers.get("X-User-Id") or 0)
@@ -37,8 +70,14 @@ class TeamHandler(BaseHTTPRequestHandler):
                 conn = get_db_conn()
                 cur = conn.cursor(dictionary=True)
 
-                if self.path.startswith("/teams/") and self.path != "/teams":
-                    team_id = int(self.path.split('/')[-1])
+                if path.startswith("/teams/") and path != "/teams":
+                    try:
+                        team_id = int(path.split('/')[-1])
+                    except ValueError:
+                        self._set_headers(400)
+                        self.wfile.write(json.dumps({"error": "Invalid team id"}).encode("utf-8"))
+                        return
+
                     cur.execute("SELECT id, name, description, leader_id, members, created_at FROM teams WHERE id=%s", (team_id,))
                     team = cur.fetchone()
                     if not team:
@@ -46,7 +85,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                         self.wfile.write(json.dumps({"error": "Team not found"}).encode("utf-8"))
                         return
 
-                    members = json.loads(team['members']) if team.get('members') else []
+                    members = self._parse_members(team.get('members'))
                     all_user_ids = set(members)
                     if team.get('leader_id'):
                         all_user_ids.add(team['leader_id'])
@@ -56,18 +95,39 @@ class TeamHandler(BaseHTTPRequestHandler):
                     if team.get('leader_id') and team['leader_id'] in user_map:
                         team['leader'] = user_map[team['leader_id']]
                     team['members'] = [user_map[uid] for uid in members if uid in user_map]
+                    # Return members as comma-separated string for frontend compatibility if needed, or list
+                    team['members'] = ",".join(map(str, members))
 
                     self._set_headers(200)
                     self.wfile.write(json.dumps(team, default=str).encode('utf-8'))
                     return
 
                 # list teams
-                cur.execute("SELECT id, name, description, leader_id, members, created_at FROM teams")
+                # Check for query params (e.g. ?ids=1,2,3) though usually handled by user-service, 
+                # but if we want to filter teams by ID:
+                query_params = parse_qs(parsed_path.query)
+                if 'ids' in query_params:
+                    ids_str = query_params['ids'][0]
+                    try:
+                        team_ids = [int(x) for x in ids_str.split(',')]
+                        if not team_ids:
+                             self._set_headers(200)
+                             self.wfile.write(json.dumps([]).encode('utf-8'))
+                             return
+                        placeholders = ','.join(['%s'] * len(team_ids))
+                        cur.execute(f"SELECT id, name, description, leader_id, members, created_at FROM teams WHERE id IN ({placeholders})", tuple(team_ids))
+                    except ValueError:
+                        self._set_headers(400)
+                        self.wfile.write(json.dumps({"error": "Invalid ids parameter"}).encode("utf-8"))
+                        return
+                else:
+                    cur.execute("SELECT id, name, description, leader_id, members, created_at FROM teams")
+                
                 all_teams = cur.fetchall()
                 
                 all_user_ids = set()
                 for team in all_teams:
-                    members = json.loads(team['members']) if team.get('members') else []
+                    members = self._parse_members(team.get('members'))
                     if team.get('leader_id'):
                         all_user_ids.add(team['leader_id'])
                     all_user_ids.update(members)
@@ -76,7 +136,7 @@ class TeamHandler(BaseHTTPRequestHandler):
 
                 result = []
                 for team in all_teams:
-                    members = json.loads(team['members']) if team.get('members') else []
+                    members = self._parse_members(team.get('members'))
                     
                     visible = False
                     if role == 'ADMIN':
@@ -85,16 +145,25 @@ class TeamHandler(BaseHTTPRequestHandler):
                         visible = True
                     if requester_id in members:
                         visible = True
+                    
+                    # For simplicity, let's allow viewing all teams in the list, 
+                    # or restrict if needed. The prompt implies "view to see all members", 
+                    # suggesting listing might be open or role-based.
+                    # Current logic restricts visibility.
+                    # If ids are requested specifically, maybe allow?
+                    if 'ids' in query_params:
+                        visible = True 
 
                     if visible:
                         if team.get('leader_id') and team['leader_id'] in user_map:
                             team['leader'] = user_map[team['leader_id']]
-                        team['members'] = [user_map[uid] for uid in members if uid in user_map]
+                        team['members'] = ",".join(map(str, members))
                         result.append(team)
 
                 self._set_headers(200)
                 self.wfile.write(json.dumps(result, default=str).encode('utf-8'))
             except Exception as e:
+                print(f"Error in do_GET: {e}") # Debug log
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             finally:
@@ -109,18 +178,46 @@ class TeamHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Not found"}).encode("utf-8"))
 
+    def _parse_members(self, members_raw):
+        if not members_raw:
+            return []
+        try:
+            parsed = json.loads(members_raw)
+            if isinstance(parsed, list):
+                return [int(x) for x in parsed]
+            if isinstance(parsed, int):
+                return [parsed]
+            if isinstance(parsed, str):
+                if ',' in parsed:
+                    return [int(x.strip()) for x in parsed.split(',') if x.strip()]
+                if parsed.isdigit():
+                    return [int(parsed)]
+                return []
+        except json.JSONDecodeError:
+            if isinstance(members_raw, str):
+                 return [int(x.strip()) for x in members_raw.split(',') if x.strip().isdigit()]
+            return []
+        except Exception:
+            return []
+
     def _fetch_user_details_map(self, conn, ids):
         if not ids:
             return {}
         cur = conn.cursor(dictionary=True)
-        placeholders = ','.join(['%s'] * len(ids))
-        cur.execute(f"SELECT id, username, email, first_name, last_name, role, active FROM users WHERE id IN ({placeholders})", tuple(ids))
+        valid_ids = [i for i in ids if isinstance(i, int)]
+        if not valid_ids:
+            return {}
+        placeholders = ','.join(['%s'] * len(valid_ids))
+        cur.execute(f"SELECT id, username, email, first_name, last_name, role, active FROM users WHERE id IN ({placeholders})", tuple(valid_ids))
         rows = cur.fetchall()
         cur.close()
         return {row['id']: row for row in rows}
 
     def do_POST(self):
-        if self.path == "/teams":
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+
+        if path == "/teams":
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length)
             try:
@@ -143,9 +240,18 @@ class TeamHandler(BaseHTTPRequestHandler):
                 return
 
             try:
-                members_json = None
+                members_list = []
                 if "members" in data:
-                    members_json = json.dumps(data.get("members", []))
+                    raw_members = data["members"]
+                    if isinstance(raw_members, list):
+                        members_list = raw_members
+                    elif isinstance(raw_members, str):
+                         members_list = [int(x.strip()) for x in raw_members.split(',') if x.strip().isdigit()]
+                    elif isinstance(raw_members, int):
+                        members_list = [raw_members]
+                
+                members_json = json.dumps(members_list)
+
                 conn = get_db_conn()
                 cur = conn.cursor()
                 cur.execute("INSERT INTO teams (name, description, leader_id, members) VALUES (%s,%s,%s,%s)",
@@ -154,22 +260,21 @@ class TeamHandler(BaseHTTPRequestHandler):
                 conn.commit()
                 cur.close()
                 
-                # Fetch the newly created team including expanded details
                 cur = conn.cursor(dictionary=True)
                 cur.execute("SELECT id, name, description, leader_id, members, created_at FROM teams WHERE id=%s", (team_id,))
                 team = cur.fetchone()
 
-                all_user_ids = set()
-                members = json.loads(team['members']) if team.get('members') else []
+                members = self._parse_members(team.get('members'))
+                all_user_ids = set(members)
                 if team.get('leader_id'):
                     all_user_ids.add(team['leader_id'])
-                all_user_ids.update(members)
                 
                 user_map = self._fetch_user_details_map(conn, list(all_user_ids))
 
                 if team.get('leader_id') and team['leader_id'] in user_map:
                     team['leader'] = user_map[team['leader_id']]
-                team['members'] = [user_map[uid] for uid in members if uid in user_map]
+                
+                team['members'] = ",".join(map(str, members))
 
                 self._set_headers(201)
                 self.wfile.write(json.dumps(team, default=str).encode("utf-8"))
@@ -180,7 +285,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals() and cur:
                         cur.close()
-                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
+                    if 'conn' in locals() and conn: 
                         conn.close()
                 except Exception:
                     pass
@@ -189,9 +294,12 @@ class TeamHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "Not found"}).encode("utf-8"))
 
     def do_PUT(self):
-        if self.path.startswith("/teams/"):
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+
+        if path.startswith("/teams/"):
             try:
-                team_id = int(self.path.split('/')[-1])
+                team_id = int(path.split('/')[-1])
             except (IndexError, ValueError):
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": "Invalid team id"}).encode("utf-8"))
@@ -246,7 +354,15 @@ class TeamHandler(BaseHTTPRequestHandler):
                     values.append(data["leader_id"])
                 if "members" in data:
                     fields.append("members=%s")
-                    values.append(json.dumps(data["members"]))
+                    raw_members = data["members"]
+                    members_list = []
+                    if isinstance(raw_members, list):
+                        members_list = raw_members
+                    elif isinstance(raw_members, str):
+                         members_list = [int(x.strip()) for x in raw_members.split(',') if x.strip().isdigit()]
+                    elif isinstance(raw_members, int):
+                        members_list = [raw_members]
+                    values.append(json.dumps(members_list))
 
                 if not fields:
                     self._set_headers(400)
@@ -278,7 +394,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals() and cur:
                         cur.close()
-                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
+                    if 'conn' in locals() and conn: 
                         conn.close()
                 except Exception:
                     pass
@@ -287,7 +403,10 @@ class TeamHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "Not found"}).encode("utf-8"))
 
     def do_DELETE(self):
-        if self.path.startswith("/teams/"):
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+
+        if path.startswith("/teams/"):
             role = self.headers.get("X-User-Role", "MEMBER")
             if role != "ADMIN":
                 self._set_headers(403)
@@ -295,7 +414,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 return
 
             try:
-                team_id = int(self.path.split('/')[-1])
+                team_id = int(path.split('/')[-1])
             except (IndexError, ValueError):
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": "Invalid team id"}).encode("utf-8"))
@@ -320,7 +439,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals() and cur:
                         cur.close()
-                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
+                    if 'conn' in locals() and conn: 
                         conn.close()
                 except Exception:
                     pass

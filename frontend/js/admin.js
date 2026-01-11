@@ -58,6 +58,8 @@
         tableBody.querySelectorAll('.view-user').forEach(btn => btn.addEventListener('click', handleViewUser));
     }
 
+
+
     async function handleSaveRole(e) {
         const id = e.currentTarget.closest('.save-role').dataset.id;
         const select = tableBody.querySelector(`select[data-id="${id}"]`);

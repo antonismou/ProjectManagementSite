@@ -1,270 +1,501 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const user = requireAuth();
+    const user = requireAuth(); // Assume requireAuth checks token and returns user object or redirects
     if (!user) return;
 
     // Navbar setup
     const usernameDisplay = document.getElementById('username-display');
     if (usernameDisplay) usernameDisplay.textContent = user.username;
+    
+    // Dynamically show Admin link if user is admin
     if (user.role === 'ADMIN') {
-        const container = document.getElementById('admin-link-container');
-        if (container) {
-            const a = document.createElement('a');
-            a.href = 'admin.html';
-            a.textContent = 'Admin';
-            a.className = 'nav-link';
-            container.appendChild(a);
+        const adminLinkContainer = document.getElementById('admin-link-container');
+        if (adminLinkContainer) {
+            const adminLink = document.createElement('a');
+            adminLink.href = 'admin.html';
+            adminLink.textContent = 'Admin';
+            adminLink.className = 'nav-link';
+            adminLinkContainer.appendChild(adminLink);
         }
     }
 
     const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
-    if (!id) {
+    const taskId = params.get('id');
+    if (!taskId) {
         document.getElementById('task-content').innerHTML = '<div class="alert alert-danger">Task ID is missing.</div>';
         return;
     }
 
-    async function loadTask() {
+    const taskContentDiv = document.getElementById('task-content');
+    const commentsDiv = document.getElementById('comments');
+    const attachmentsDiv = document.getElementById('attachments');
+    const toastContainer = document.querySelector('.toast-container');
+
+    // Helper function to show toasts
+    function showToast(message, isError = false) {
+        const toastId = `toast-${Date.now()}`;
+        const toastHtml = `
+            <div id="${toastId}" class="toast ${isError ? 'bg-danger text-white' : 'bg-success text-white'}" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header">
+                    <strong class="me-auto">${isError ? 'Error' : 'Success'}</strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body">${message}</div>
+            </div>
+        `;
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        const toastEl = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastEl);
+        toast.show();
+    }
+
+    // Helper to escape HTML entities
+    function escapeHtml(unsafe) {
+        if (unsafe === null || unsafe === undefined) return '';
+        return String(unsafe)
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+    
+    // Helper to format date for display
+    function formatDate(dateString) {
+        if (!dateString) return '-';
         try {
-            const token = localStorage.getItem('token');
-            const task = await apiRequest(TASK_SERVICE_URL, `/tasks/${id}`, 'GET', null, token);
-            renderTask(task);
-            renderComments(task.comments || []);
-            renderAttachments(task.attachments || []);
-        } catch (err) {
-            console.error(err);
-            document.getElementById('task-content').innerHTML = '<div class="alert alert-danger">Failed to load task details.</div>';
+            const date = new Date(dateString);
+            return date.toLocaleDateString(); // e.g., 1/1/2026
+        } catch (e) {
+            console.error("Error formatting date:", dateString, e);
+            return dateString; // Return original if parsing fails
+        }
+    }
+    
+    // Helper to format datetime for display
+    function formatDateTime(dateTimeString) {
+        if (!dateTimeString) return '-';
+        try {
+            const date = new Date(dateTimeString);
+            return date.toLocaleString(); // e.g., 1/1/2026, 10:00:00 AM
+        } catch (e) {
+            console.error("Error formatting datetime:", dateTimeString, e);
+            return dateTimeString; // Return original if parsing fails
         }
     }
 
-    function renderTask(task) {
-        const container = document.getElementById('task-content');
-        const isAdmin = user.role === 'ADMIN';
-        const isLeader = user.role === 'TEAM_LEADER' && Number(user.id) === Number(task.team_leader_id);
-        const isAssigned = Number(user.id) === Number(task.assigned_to);
+    // Fetch and render task details
+    async function loadTask() {
+        try {
+            const task = await apiRequest(TASK_SERVICE_URL, `/tasks/${taskId}`, 'GET');
+            renderTaskDetails(task);
+            renderComments(task.comments || []);
+            renderAttachments(task.attachments || []);
+        } catch (err) {
+            console.error("Failed to load task:", err);
+            taskContentDiv.innerHTML = `<div class="alert alert-danger">Failed to load task details. Error: ${err.error || 'Unknown error'}</div>`;
+        }
+    }
 
-        let statusBadge = `<span class="badge bg-secondary">${task.status}</span>`;
+    function renderTaskDetails(task) {
+        let statusBadge = `<span class="badge bg-secondary">${task.status || 'N/A'}</span>`;
         if (task.status === 'IN_PROGRESS') statusBadge = `<span class="badge bg-warning text-dark">${task.status}</span>`;
         if (task.status === 'DONE') statusBadge = `<span class="badge bg-success">${task.status}</span>`;
 
-        let priorityBadge = `<span class="badge bg-secondary">${task.priority}</span>`;
+        let priorityBadge = `<span class="badge bg-secondary">${task.priority || 'N/A'}</span>`;
         if (task.priority === 'HIGH') priorityBadge = `<span class="badge bg-danger">${task.priority}</span>`;
         if (task.priority === 'MEDIUM') priorityBadge = `<span class="badge bg-warning text-dark">${task.priority}</span>`;
         if (task.priority === 'LOW') priorityBadge = `<span class="badge bg-success">${task.priority}</span>`;
         
+        const isAdmin = user.role === 'ADMIN';
+        const isLeader = user.role === 'TEAM_LEADER' && task.team_details && task.team_details.leader_id === user.id;
+        const isAssignee = task.assigned_to === user.id;
+        const isCreator = task.created_by === user.id;
+
+        // --- Edit Form Generation ---
         let editFormHtml = '';
-        if (isAdmin || isLeader) {
+
+        if (isLeader) {
+            // FULL EDIT FORM (Leader ONLY)
             editFormHtml = `
-                <div class="card mt-4">
-                    <div class="card-header">
-                        <h5>Edit Task</h5>
+                <div class="card mt-4 shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="fas fa-edit me-2"></i> Edit Task</h5>
                     </div>
                     <div class="card-body">
                         <form id="edit-task-form">
-                            <div class="mb-3"><label for="title" class="form-label">Title</label><input class="form-control" name="title" value="${escapeHtml(task.title || '')}" required></div>
-                            <div class="mb-3"><label for="description" class="form-label">Description</label><textarea class="form-control" name="description">${escapeHtml(task.description || '')}</textarea></div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3"><label for="priority" class="form-label">Priority</label><select class="form-select" name="priority"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
-                                <div class="col-md-6 mb-3"><label for="due_date" class="form-label">Due Date</label><input class="form-control" type="date" name="due_date" value="${task.due_date || ''}"></div>
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Title</label>
+                                <input class="form-control" name="title" value="${escapeHtml(task.title || '')}" required>
                             </div>
-                            <div class="mb-3"><label for="edit-assigned-select" class="form-label">Assign To</label><select class="form-select" name="assigned_to" id="edit-assigned-select"><option value="">-</option></select></div>
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" name="description" rows="3">${escapeHtml(task.description || '')}</textarea>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="priority" class="form-label">Priority</label>
+                                    <select class="form-select" name="priority">
+                                        <option value="LOW" ${task.priority === 'LOW' ? 'selected' : ''}>Low</option>
+                                        <option value="MEDIUM" ${task.priority === 'MEDIUM' ? 'selected' : ''}>Medium</option>
+                                        <option value="HIGH" ${task.priority === 'HIGH' ? 'selected' : ''}>High</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="status" class="form-label">Status</label>
+                                    <select class="form-select" name="status">
+                                        <option value="TODO" ${task.status === 'TODO' ? 'selected' : ''}>To Do</option>
+                                        <option value="IN_PROGRESS" ${task.status === 'IN_PROGRESS' ? 'selected' : ''}>In Progress</option>
+                                        <option value="DONE" ${task.status === 'DONE' ? 'selected' : ''}>Done</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="due_date" class="form-label">Due Date</label>
+                                    <input class="form-control" type="date" name="due_date" value="${task.due_date || ''}">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="team_id" class="form-label">Team</label>
+                                    <!-- Team is LOCKED for editing -->
+                                    <select class="form-select" name="team_id" id="team-select" disabled>
+                                        <option value="">Loading...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="assigned_to" class="form-label">Assign To</label>
+                                    <select class="form-select" name="assigned_to" id="assignee-select">
+                                        <option value="">-- Unassigned --</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i> Save Changes</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        } else if (isAssignee) {
+            // STATUS ONLY FORM (Assignee)
+            editFormHtml = `
+                <div class="card mt-4 shadow-sm border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-user-edit me-2"></i> Update Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="edit-task-form">
+                            <!-- Hidden fields to preserve other values or handled by backend partial update -->
+                            <div class="mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <div class="input-group">
+                                    <select class="form-select" name="status">
+                                        <option value="TODO" ${task.status === 'TODO' ? 'selected' : ''}>To Do</option>
+                                        <option value="IN_PROGRESS" ${task.status === 'IN_PROGRESS' ? 'selected' : ''}>In Progress</option>
+                                        <option value="DONE" ${task.status === 'DONE' ? 'selected' : ''}>Done</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-info text-white">Update Status</button>
+                                </div>
+                            </div>
                         </form>
                     </div>
                 </div>
             `;
         }
 
-        let statusChangeHtml = '';
-        if (isAssigned) {
-            statusChangeHtml = `
-                <div class="mt-3">
-                    <h5>Change Status</h5>
-                    <div class="input-group">
-                        <select id="status-select" class="form-select">
-                            <option>TODO</option>
-                            <option>IN_PROGRESS</option>
-                            <option>DONE</option>
-                        </select>
-                        <button id="status-change" class="btn btn-outline-secondary">Update</button>
-                    </div>
-                </div>
-            `;
+        // Fetch TEAM MEMBERS to populate assignee dropdown ONLY if Leader
+        if (isLeader) {
+            populateTeamMembersSelect(task.team_id, task.assigned_to);
         }
 
-        container.innerHTML = `
-            <div class="card">
-                <div class="card-header"><h1>${task.title}</h1></div>
+        taskContentDiv.innerHTML = `
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h1 class="h3 mb-0">${escapeHtml(task.title || 'Untitled Task')}</h1>
+                    ${(isLeader || isCreator || isAdmin) ? `<button id="delete-task-btn" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash me-1"></i> Delete</button>` : ''}
+                </div>
                 <div class="card-body">
-                    <div class="d-flex justify-content-between mb-3">
-                        <span><strong>Status:</strong> ${statusBadge}</span>
-                        <span><strong>Priority:</strong> ${priorityBadge}</span>
-                        <span><strong>Due:</strong> ${task.due_date || '-'}</span>
+                    <p class="card-text lead">${escapeHtml(task.description || 'No description provided.')}</p>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Status:</strong> ${statusBadge}</p>
+                            <p><strong>Priority:</strong> ${priorityBadge}</p>
+                            <p><strong>Due Date:</strong> ${formatDate(task.due_date)}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Team:</strong> ${task.team_details ? escapeHtml(task.team_details.name) : '-'}</p>
+                            <p><strong>Assignee:</strong> ${task.assigned_to_details ? escapeHtml(task.assigned_to_details.username) : '-'}</p>
+                            <p><strong>Creator:</strong> ${task.created_by_details ? escapeHtml(task.created_by_details.username) : '-'}</p>
+                        </div>
                     </div>
-                    <p class="card-text">${task.description || 'No description provided.'}</p>
-                    ${statusChangeHtml}
+                    <p class="text-muted small"><i class="far fa-clock me-1"></i> Created: ${formatDateTime(task.created_at)}</p>
                 </div>
             </div>
             ${editFormHtml}
         `;
 
-        if (isAdmin || isLeader) {
-            document.querySelector('#edit-task-form [name="priority"]').value = task.priority;
+        // Add event listeners
+        if (isLeader) {
             document.getElementById('edit-task-form').addEventListener('submit', handleUpdateTask);
-            populateAssignToSelect(task.team_id, task.assigned_to);
+            populateTeamSelect(task.team_id);
+        } else if (isAssignee) {
+            document.getElementById('edit-task-form').addEventListener('submit', handleUpdateStatusOnly);
         }
-        if (isAssigned) {
-            document.getElementById('status-select').value = task.status;
-            document.getElementById('status-change').addEventListener('click', handleChangeStatus);
+
+        if (isLeader || isCreator || isAdmin) {
+            document.getElementById('delete-task-btn')?.addEventListener('click', handleDeleteTask);
         }
     }
 
-    async function populateAssignToSelect(teamId, selectedUserId) {
+    // Fetch only members of the specific team
+    async function populateTeamMembersSelect(teamId, currentAssigneeId) {
+        if (!teamId) return;
+        
         try {
-            const token = localStorage.getItem('token');
-            const team = await apiRequest(TEAM_SERVICE_URL, `/teams/${teamId}`, 'GET', null, token);
-            const select = document.getElementById('edit-assigned-select');
-            if (select && team && team.members) {
-                select.innerHTML = '<option value="">- Unassign -</option>' + team.members.map(m => `<option value="${m.id}">${m.username}</option>`).join('');
-                if (selectedUserId) select.value = String(selectedUserId);
+            // 1. Fetch Team Details to get member IDs
+            const team = await apiRequest(TEAM_SERVICE_URL, `/teams/${teamId}`);
+            if (!team || !team.members) return;
+
+            // Parse members (handle string/list variations)
+            let memberIds = [];
+            if (typeof team.members === 'string') memberIds = team.members.split(',').map(Number).filter(Boolean);
+            else if (Array.isArray(team.members)) memberIds = team.members.map(Number).filter(Boolean);
+            else if (typeof team.members === 'number') memberIds = [team.members];
+
+            // 2. Fetch User Details for these members
+            if (memberIds.length === 0) return;
+            const users = await apiRequest(USER_SERVICE_URL, '/users?ids=' + memberIds.join(','));
+
+            // 3. Populate Dropdown
+            const assigneeSelect = document.getElementById('assignee-select');
+            if (assigneeSelect && users) {
+                assigneeSelect.innerHTML = '<option value="">-- Unassigned --</option>';
+                users.forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.id;
+                    option.textContent = escapeHtml(u.username);
+                    if (u.id === currentAssigneeId) option.selected = true;
+                    assigneeSelect.appendChild(option);
+                });
             }
-        } catch (e) {
-            console.error('Failed to populate assign-to select', e);
+        } catch (err) {
+            console.error("Failed to populate team members:", err);
         }
     }
+
+    // Fetch all teams to populate the team dropdown for task creation/editing
+    async function populateTeamSelect(currentTeamId) {
+        const teamSelect = document.getElementById('team-select');
+        if (!teamSelect) return;
+
+        try {
+            const teams = await apiRequest(TEAM_SERVICE_URL, '/teams', 'GET');
+            if (teams) {
+                teams.forEach(team => {
+                    const option = document.createElement('option');
+                    option.value = team.id;
+                    option.textContent = escapeHtml(team.name);
+                    if (team.id === currentTeamId) { // Pre-select current team if editing
+                        option.selected = true;
+                    }
+                    teamSelect.appendChild(option);
+                });
+            }
+        } catch (err) {
+            console.error("Failed to fetch teams:", err);
+            showToast(`Failed to fetch teams: ${err.error || 'Unknown error'}`, true);
+        }
+    }
+
 
     async function handleUpdateTask(e) {
         e.preventDefault();
         const form = e.target;
+        const taskIdToUpdate = taskId; // Use the taskId from URL
+
         const payload = {
-            title: form.querySelector('[name="title"]').value,
-            description: form.querySelector('[name="description"]').value,
+            title: form.querySelector('[name="title"]').value.trim(),
+            description: form.querySelector('[name="description"]').value.trim(),
             priority: form.querySelector('[name="priority"]').value,
+            status: form.querySelector('[name="status"]').value,
             due_date: form.querySelector('[name="due_date"]').value || null,
-            assigned_to: form.querySelector('[name="assigned_to"]').value ? Number(form.querySelector('[name="assigned_to"]').value) : null
+            team_id: parseInt(form.querySelector('[name="team_id"]').value) || null,
+            assigned_to: form.querySelector('[name="assigned_to"]').value ? parseInt(form.querySelector('[name="assigned_to"]').value) : null
         };
+
+        if (!payload.title) {
+            showToast('Task title is required.', true);
+            return;
+        }
+        if (!payload.team_id) {
+            showToast('Team is required.', true);
+            return;
+        }
+
         try {
-            await apiRequest(TASK_SERVICE_URL, `/tasks/${id}`, 'PUT', payload, localStorage.getItem('token'));
+            await apiRequest(TASK_SERVICE_URL, `/tasks/${taskIdToUpdate}`, 'PUT', payload);
             showToast('Task updated successfully!');
-            loadTask();
+            loadTask(); // Reload task to show updated info
         } catch (err) {
-            showToast(err.error || 'Failed to update task', true);
+            console.error("Failed to update task:", err);
+            showToast(`Failed to update task: ${err.error || 'Unknown error'}`, true);
         }
     }
     
-    async function handleChangeStatus() {
-        const newStatus = document.getElementById('status-select').value;
+    async function handleUpdateStatusOnly(e) {
+        e.preventDefault();
+        const form = e.target;
+        const newStatus = form.querySelector('[name="status"]').value;
+        
         try {
-            await apiRequest(TASK_SERVICE_URL, `/tasks/${id}`, 'PUT', { status: newStatus }, localStorage.getItem('token'));
+            await apiRequest(TASK_SERVICE_URL, `/tasks/${taskId}`, 'PUT', { status: newStatus });
             showToast('Status updated successfully!');
             loadTask();
         } catch (err) {
-            showToast(err.error || 'Failed to change status', true);
+            console.error("Failed to update status:", err);
+            showToast(`Failed to update status: ${err.error || 'Unknown error'}`, true);
+        }
+    }
+    
+    async function handleDeleteTask() {
+        if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+            return;
+        }
+        try {
+            await apiRequest(TASK_SERVICE_URL, `/tasks/${taskId}`, 'DELETE');
+            showToast('Task deleted successfully!');
+            setTimeout(() => { window.location.href = 'my-tasks.html'; }, 1500); // Redirect after deletion
+        } catch (err) {
+            console.error("Failed to delete task:", err);
+            showToast(`Failed to delete task: ${err.error || 'Unknown error'}`, true);
         }
     }
 
     function renderComments(comments) {
-        const container = document.getElementById('comments');
-        let commentsHtml = comments.map(c => {
-            const authorName = c.author ? c.author.username : 'Unknown';
-            return `<div class="list-group-item">
+        let commentsHtml = '';
+        if (comments.length === 0) {
+            commentsHtml = '<div class="list-group-item">No comments yet.</div>';
+        } else {
+            comments.forEach(c => {
+                commentsHtml += `
+                    <div class="list-group-item">
                         <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">${escapeHtml(authorName)}</h6>
-                            <small>${new Date(c.created_at).toLocaleString()}</small>
+                            <h6 class="mb-1">${escapeHtml(c.author_username || 'Unknown')}</h6>
+                            <small>${formatDateTime(c.created_at)}</small>
                         </div>
                         <p class="mb-1">${escapeHtml(c.content || '')}</p>
-                    </div>`;
-        }).join('');
-        
-        container.innerHTML = `
-            <div class="list-group mb-3">${commentsHtml || '<div class="list-group-item">No comments yet.</div>'}</div>
-            <div>
-                <div class="mb-2"><textarea id="comment-input" class="form-control" placeholder="Add a comment..."></textarea></div>
-                <button id="comment-send" class="btn btn-sm btn-primary">Post Comment</button>
+                    </div>
+                `;
+            });
+        }
+
+        commentsDiv.innerHTML = `
+            <div class="list-group mb-3">${commentsHtml}</div>
+            <div class="mb-2">
+                <textarea id="comment-input" class="form-control" placeholder="Add a comment..." rows="3"></textarea>
             </div>
+            <button id="post-comment-btn" class="btn btn-primary btn-sm">Post Comment</button>
         `;
-        document.getElementById('comment-send').addEventListener('click', handlePostComment);
+        document.getElementById('post-comment-btn').addEventListener('click', handlePostComment);
     }
 
     async function handlePostComment() {
-        const content = document.getElementById('comment-input').value.trim();
+        const contentInput = document.getElementById('comment-input');
+        const content = contentInput.value.trim();
         if (!content) {
             showToast('Comment cannot be empty.', true);
             return;
         }
-        this.disabled = true;
+        
+        const postBtn = document.getElementById('post-comment-btn');
+        postBtn.disabled = true;
+        postBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Posting...';
+
         try {
-            await apiRequest(TASK_SERVICE_URL, `/tasks/${id}/comments`, 'POST', { content }, localStorage.getItem('token'));
-            loadTask();
+            await apiRequest(TASK_SERVICE_URL, `/tasks/${taskId}/comments`, 'POST', { content });
+            showToast('Comment posted successfully!');
+            contentInput.value = ''; // Clear input
+            loadTask(); // Reload task to show new comment
         } catch (err) {
-            showToast(err.error || 'Failed to post comment', true);
+            console.error("Failed to post comment:", err);
+            showToast(`Failed to post comment: ${err.error || 'Unknown error'}`, true);
         } finally {
-            this.disabled = false;
+            postBtn.disabled = false;
+            postBtn.textContent = 'Post Comment';
         }
     }
     
     function renderAttachments(attachments) {
-        const container = document.getElementById('attachments');
-        let attachmentsHtml = attachments.map(a => {
-            const href = a.url.startsWith('http') ? a.url : `${TASK_SERVICE_URL}${a.url}`;
-            return `<a href="${href}" target="_blank" class="list-group-item list-group-item-action">${escapeHtml(a.original_name || a.url)}</a>`;
-        }).join('');
+        let attachmentsHtml = '';
+        if (attachments.length === 0) {
+            attachmentsHtml = '<div class="list-group-item">No attachments yet.</div>';
+        } else {
+            attachments.forEach(a => {
+                // Construct URL carefully, assuming backend serves files from /files/
+                const fileUrl = a.url.startsWith('/') ? `${TASK_SERVICE_URL}${a.url}` : a.url;
+                attachmentsHtml += `
+                    <a href="${fileUrl}" target="_blank" class="list-group-item list-group-item-action">
+                        <i class="fas fa-paperclip me-2"></i> ${escapeHtml(a.original_name || 'Unnamed Attachment')}
+                    </a>
+                `;
+            });
+        }
 
-        container.innerHTML = `
-            <div class="list-group mb-3">${attachmentsHtml || '<div class="list-group-item">No attachments.</div>'}</div>
-            <div id="drop-zone"><i class="fas fa-upload me-2"></i> Drop file or click to upload</div>
-            <input type="file" id="attach-file-input" class="d-none">
+        attachmentsDiv.innerHTML = `
+            <div class="list-group mb-3">${attachmentsHtml}</div>
+            <div id="drop-zone" class="text-center p-3 border rounded mb-3" style="cursor: pointer;">
+                <i class="fas fa-upload me-2"></i> Drag & drop files here or click to upload
+            </div>
+            <input type="file" id="file-upload-input" class="d-none">
         `;
 
         const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('attach-file-input');
+        const fileInput = document.getElementById('file-upload-input');
+
+        // Click to upload
         dropZone.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop handlers
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); });
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
             if (e.dataTransfer.files.length) {
-                handleUpload(e.dataTransfer.files[0]);
+                handleAttachmentUpload(e.dataTransfer.files[0]);
             }
         });
+
+        // File input change handler
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length) {
-                handleUpload(e.target.files[0]);
+                handleAttachmentUpload(e.target.files[0]);
             }
         });
     }
 
-    async function handleUpload(file) {
+    async function handleAttachmentUpload(file) {
         const dropZone = document.getElementById('drop-zone');
-        const originalText = dropZone.innerHTML;
-        dropZone.innerHTML = `<div class="spinner-border spinner-border-sm" role="status"></div> Uploading...`;
-        
-        const formData = new FormData();
-        formData.append('file', file, file.name);
-        formData.append('original_name', file.name);
+        const originalDropZoneContent = dropZone.innerHTML;
+        dropZone.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Uploading ${escapeHtml(file.name)}...`;
+        dropZone.style.pointerEvents = 'none'; // Prevent interaction during upload
 
-        const token = localStorage.getItem('token');
-        const headers = {};
-        if (token) headers['Authorization'] = 'Bearer ' + token;
-        if (user && user.role) headers['X-User-Role'] = user.role;
-        if (user && user.id) headers['X-User-Id'] = String(user.id);
+        const formData = new FormData();
+        formData.append('file', file); // 'file' must match the field name expected by the backend
+        formData.append('original_name', file.name); // Pass original name if backend expects it
 
         try {
-            const res = await fetch(`${TASK_SERVICE_URL}/tasks/${id}/attachments`, {
-                method: 'POST',
-                headers: headers,
-                body: formData
-            });
-            if (!res.ok) throw await res.json();
-            loadTask();
+            // Use apiRequest or fetch directly if apiRequest doesn't support FormData well
+            // Assuming apiRequest can handle FormData with correct headers
+            await apiRequest(TASK_SERVICE_URL, `/tasks/${taskId}/attachments`, 'POST', formData);
+            showToast('Attachment uploaded successfully!');
+            loadTask(); // Reload task to show new attachment
         } catch (err) {
-            showToast(err.error || 'File upload failed.', true);
+            console.error("Failed to upload attachment:", err);
+            showToast(`Attachment upload failed: ${err.error || 'Unknown error'}`, true);
         } finally {
-            dropZone.innerHTML = originalText;
+            dropZone.innerHTML = originalDropZoneContent; // Restore content
+            dropZone.style.pointerEvents = 'auto'; // Re-enable interaction
         }
     }
 
-    function escapeHtml(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-
+    // Initial load
     loadTask();
 });

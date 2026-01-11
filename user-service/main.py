@@ -1,7 +1,7 @@
 import json
 import os
-import cgi
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs
 import mysql.connector
 
 
@@ -120,7 +120,7 @@ class UserHandler(BaseHTTPRequestHandler):
         # GET /users/ids=<id1,id2,...> -> list minimal user info for selection by IDs
         elif self.path.startswith("/users?") and "ids=" in self.path:
             query_string = self.path.split('?', 1)[1]
-            query_params = {k: v[0] for k, v in cgi.parse_qs(query_string).items()}
+            query_params = {k: v[0] for k, v in parse_qs(query_string).items()}
             
             ids_str = query_params.get("ids")
             if not ids_str:

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PMS - Teams</title>
+    <!-- Favicon -->
+    <link rel="icon" href="favicon.svg">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome for icons -->
@@ -43,139 +45,126 @@
     </nav>
 
     <main class="container mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Teams</h1>
-            <button id="create-team-btn" class="btn btn-primary"><i class="fas fa-plus me-2"></i> New Team</button>
+        <!-- Teams List View -->
+        <div id="teams-list-view">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Teams</h1>
+                <button id="create-team-main-btn" class="btn btn-success d-none" data-bs-toggle="modal" data-bs-target="#create-team-modal">
+                    <i class="fas fa-plus me-2"></i> Create New Team
+                </button>
+            </div>
+            <div id="teams-grid" class="row g-4">
+                <!-- Team Cards will be injected here -->
+                <div class="col-12 text-center">
+                    <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+                </div>
+            </div>
         </div>
-        <div id="teams-list" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            <!-- Team cards will be injected here -->
+
+        <!-- Single Team Detailed View (Hidden by default) -->
+        <div id="team-detail-view" class="d-none">
+            <button class="btn btn-outline-secondary mb-3" onclick="window.location.href='teams.html'"><i class="fas fa-arrow-left me-2"></i> Back to Teams</button>
+            <div id="team-view-content">
+                <!-- Detailed content injected by JS -->
+            </div>
         </div>
     </main>
 
-    <!-- Create/Edit Team Modal -->
-    <div class="modal fade" id="team-modal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Create Team</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="create-team-form">
+    <!-- Create Team Modal -->
+    <div class="modal fade" id="create-team-modal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="create-team-form">
+            <div class="modal-header">
+              <h5 class="modal-title">Create New Team</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="create-team-name" class="form-label">Team Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="create-team-name" name="name" required>
+              </div>
+              <div class="mb-3">
+                <label for="create-team-description" class="form-label">Description</label>
+                <textarea class="form-control" id="create-team-description" name="description"></textarea>
+              </div>
+              <div class="mb-3">
+                <label for="create-team-leader" class="form-label">Team Leader <span class="text-danger">*</span></label>
+                <select class="form-select" id="create-team-leader" name="leader_id" required>
+                  <option value="">-- Select Leader --</option>
+                  <!-- All Users will be populated here -->
+                </select>
+                <div class="form-text">Selecting a Member will automatically upgrade them to Team Leader.</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Create Team</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manage Team Modal (Edit & Members) -->
+    <div class="modal fade" id="manage-team-modal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Manage Team</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <ul class="nav nav-tabs mb-3" id="manageTeamTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#manage-details" type="button" role="tab">Details</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="members-tab" data-bs-toggle="tab" data-bs-target="#manage-members" type="button" role="tab">Members</button>
+                </li>
+            </ul>
+            <div class="tab-content" id="manageTeamTabsContent">
+                <!-- Details Tab -->
+                <div class="tab-pane fade show active" id="manage-details" role="tabpanel">
+                    <form id="edit-team-form">
+                        <input type="hidden" id="edit-team-id">
                         <div class="mb-3">
-                            <label for="team-name" class="form-label">Team Name</label>
-                            <input type="text" class="form-control" id="team-name" name="name" required>
+                            <label for="edit-team-name" class="form-label">Team Name</label>
+                            <input type="text" class="form-control" id="edit-team-name" required>
                         </div>
                         <div class="mb-3">
-                            <label for="team-description" class="form-label">Description</label>
-                            <textarea class="form-control" id="team-description" name="description" required></textarea>
+                            <label for="edit-team-description" class="form-label">Description</label>
+                            <textarea class="form-control" id="edit-team-description"></textarea>
                         </div>
-                        <div class="mb-3">
-                            <label for="leader-select" class="form-label">Team Leader (optional)</label>
-                            <select class="form-select" id="leader-select" name="leader_id"><option value="">-</option></select>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Save</button>
-                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
                     </form>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- View Team Modal -->
-    <div class="modal fade" id="team-view-modal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Team Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="team-view-content">
-                    <!-- Team details will be injected here -->
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Manage Members Modal -->
-    <div class="modal fade" id="team-members-modal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Manage Members</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="team-members-content">
-                    <!-- Members content will be injected here -->
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Create Task Modal -->
-    <div class="modal fade" id="task-modal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Create New Task</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="create-task-form">
-                        <input type="hidden" id="task-team-id" name="team_id">
-                        <div class="mb-3">
-                            <label for="task-title" class="form-label">Title</label>
-                            <input type="text" class="form-control" id="task-title" name="title" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="task-description" class="form-label">Description</label>
-                            <textarea class="form-control" id="task-description" name="description"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="task-status" class="form-label">Status</label>
-                            <select class="form-select" id="task-status" name="status">
-                                <option value="TODO">To Do</option>
-                                <option value="IN_PROGRESS">In Progress</option>
-                                <option value="DONE">Done</option>
+                <!-- Members Tab -->
+                <div class="tab-pane fade" id="manage-members" role="tabpanel">
+                    <div class="mb-3">
+                        <label class="form-label">Add Member</label>
+                        <div class="input-group">
+                            <select class="form-select" id="add-member-select">
+                                <option value="">-- Select User to Add --</option>
                             </select>
+                            <button class="btn btn-success" id="add-member-btn">Add</button>
                         </div>
-                        <div class="mb-3">
-                            <label for="task-priority" class="form-label">Priority</label>
-                            <select class="form-select" id="task-priority" name="priority">
-                                <option value="LOW">Low</option>
-                                <option value="MEDIUM">Medium</option>
-                                <option value="HIGH">High</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="task-due-date" class="form-label">Due Date</label>
-                            <input type="date" class="form-control" id="task-due-date" name="due_date">
-                        </div>
-                        <div class="mb-3">
-                            <label for="task-assigned-to" class="form-label">Assigned To (optional)</label>
-                            <select class="form-select" id="task-assigned-to" name="assigned_to"><option value="">-</option></select>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Create Task</button>
-                        </div>
-                    </form>
+                    </div>
+                    <hr>
+                    <h6>Current Members</h6>
+                    <ul class="list-group" id="manage-members-list">
+                        <!-- Member list will go here -->
+                    </ul>
                 </div>
             </div>
+          </div>
         </div>
+      </div>
     </div>
-
+    
     <!-- Toast Container -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
-
+    
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Your scripts -->

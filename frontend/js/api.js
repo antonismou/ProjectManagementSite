@@ -6,7 +6,13 @@ const TASK_SERVICE_URL = "http://localhost:8082";
 async function apiRequest(baseUrl, path, method = "GET", body = null, token = null) {
   console.log("apiRequest:", baseUrl + path, method, {token: !!token});  // DEBUG
   
-  const headers = { "Content-Type": "application/json" };
+  const headers = {};
+  
+  // Only set JSON content type if body is not FormData
+  if (body && !(body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+  }
+
   // Authorization token: prefer explicit param, otherwise read from localStorage
   let authToken = token;
   if (!authToken) {
@@ -37,11 +43,18 @@ async function apiRequest(baseUrl, path, method = "GET", body = null, token = nu
   }
 
   try {
-    const res = await fetch(baseUrl + path, {
+    const fetchOptions = {
       method,
-      headers,
-      body: body ? JSON.stringify(body) : null
-    });
+      headers
+    };
+
+    if (body instanceof FormData) {
+        fetchOptions.body = body;
+    } else if (body) {
+        fetchOptions.body = JSON.stringify(body);
+    }
+
+    const res = await fetch(baseUrl + path, fetchOptions);
     
     console.log("Response status:", res.status);  // DEBUG
     

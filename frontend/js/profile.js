@@ -7,8 +7,8 @@ async function loadProfile() {
   
   // Show loading spinner
   profileContent.innerHTML = `
-    <div class="text-center">
-        <div class="spinner-border" role="status">
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
     </div>`;
@@ -31,38 +31,59 @@ async function loadProfile() {
 
 function renderProfile(user) {
   if (!user) {
-    profileContent.innerHTML = `<div class="alert alert-danger">Could not load profile.</div>`;
+    profileContent.innerHTML = `<div class="alert alert-danger text-center">Could not load profile.</div>`;
     return;
   }
   
-  const activeBadge = user.active ? `<span class="badge bg-success">Yes</span>` : `<span class="badge bg-danger">No</span>`;
+  const activeBadge = user.active ? 
+    `<span class="badge bg-success-subtle text-success border border-success px-3 rounded-pill">Active</span>` : 
+    `<span class="badge bg-danger-subtle text-danger border border-danger px-3 rounded-pill">Inactive</span>`;
 
   profileContent.innerHTML = `
-    <ul class="list-group list-group-flush">
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            Username
-            <span class="badge bg-primary rounded-pill">${user.username || '-'}</span>
-        </li>
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            Full Name
-            <span>${user.first_name || ''} ${user.last_name || ''}</span>
-        </li>
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            Email
-            <span>${user.email || '-'}</span>
-        </li>
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            Role
-            <span class="badge bg-secondary">${user.role || '-'}</span>
-        </li>
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            Active
-            ${activeBadge}
-        </li>
-    </ul>
-    <div class="d-grid mt-3">
-        <button id="refresh-profile" class="btn btn-outline-secondary">
-            <i class="fas fa-sync-alt me-2"></i> Refresh
+    <div class="row g-4">
+        <div class="col-12 text-center mb-2">
+            <h3 class="mb-1">${user.first_name || ''} ${user.last_name || ''}</h3>
+            <span class="badge bg-secondary text-uppercase py-2 px-3">${user.role || 'Member'}</span>
+        </div>
+        
+        <hr class="mt-2 mb-0">
+
+        <div class="col-12">
+            <div class="d-flex align-items-center mb-3">
+                <div class="bg-light rounded-circle p-3 me-3">
+                    <i class="fas fa-id-card text-primary"></i>
+                </div>
+                <div>
+                    <label class="text-muted small d-block">Username</label>
+                    <span class="fw-bold h5 mb-0">${user.username || '-'}</span>
+                </div>
+            </div>
+            
+            <div class="d-flex align-items-center mb-3">
+                <div class="bg-light rounded-circle p-3 me-3">
+                    <i class="fas fa-envelope text-primary"></i>
+                </div>
+                <div>
+                    <label class="text-muted small d-block">Email Address</label>
+                    <span class="fw-bold h5 mb-0">${user.email || '-'}</span>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center mb-3">
+                <div class="bg-light rounded-circle p-3 me-3">
+                    <i class="fas fa-toggle-on text-primary"></i>
+                </div>
+                <div>
+                    <label class="text-muted small d-block">Account Status</label>
+                    ${activeBadge}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-grid mt-4 pt-3">
+        <button id="refresh-profile" class="btn btn-primary py-2 shadow-sm">
+            <i class="fas fa-sync-alt me-2"></i> Refresh Profile Data
         </button>
     </div>
   `;

@@ -1,1 +1,136 @@
-/* Custom styles for admin page can go here if needed */
+:root {
+    --primary-color: #4e73df;
+    --secondary-color: #858796;
+    --success-color: #1cc88a;
+    --info-color: #36b9cc;
+    --warning-color: #f6c23e;
+    --danger-color: #e74a3b;
+    --light-color: #f8f9fc;
+    --dark-color: #5a5c69;
+    --body-bg: #f8f9fa;
+    --card-border-radius: 0.5rem;
+    --btn-border-radius: 0.35rem;
+}
+
+body {
+    background-color: var(--body-bg);
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--dark-color);
+}
+
+/* Navbar */
+.navbar {
+    background-color: var(--primary-color) !important;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid #e3e6f0;
+    font-weight: 700;
+    color: var(--primary-color);
+    border-radius: var(--card-border-radius) var(--card-border-radius) 0 0 !important;
+}
+
+/* Buttons */
+.btn {
+    border-radius: var(--btn-border-radius);
+    font-weight: 600;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #2e59d9;
+    border-color: #2653d4;
+}
+
+.btn-circle {
+    border-radius: 100%;
+    height: 2.5rem;
+    width: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Badges */
+.badge {
+    padding: 0.5em 0.75em;
+    font-weight: 700;
+}
+
+/* Priority Borders */
+.priority-high {
+    border-left: 0.25rem solid var(--danger-color) !important;
+}
+
+.priority-medium {
+    border-left: 0.25rem solid var(--warning-color) !important;
+}
+
+.priority-low {
+    border-left: 0.25rem solid var(--success-color) !important;
+}
+
+/* Dropdown */
+.dropdown-menu {
+    border: none;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+}
+
+/* Animations */
+.fade-in {
+    animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Drag & Drop */
+#drop-zone {
+    border: 2px dashed #d1d3e2;
+    background-color: #f8f9fc;
+    transition: all 0.3s;
+}
+
+#drop-zone:hover, #drop-zone.dragover {
+    background-color: #eaecf4;
+    border-color: var(--primary-color);
+}
+
+/* Table */
+.table th {
+    border-top: none;
+    color: var(--secondary-color);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+}
+
+/* Stats */
+.display-4 {
+    font-weight: 700;
+}

@@ -45,6 +45,8 @@ services:
       DB_USER: pms
       DB_PASS: pms
       DB_NAME: pms
+    volumes:
+      - task_uploads:/app/uploads
 
   frontend:
     image: nginx:alpine
@@ -66,3 +68,4 @@ services:
 
 volumes:
   mysql_data:
+  task_uploads:
