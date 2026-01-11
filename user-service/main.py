@@ -1,5 +1,6 @@
 import json
 import os
+import cgi
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import mysql.connector
 
@@ -113,6 +114,53 @@ class UserHandler(BaseHTTPRequestHandler):
                 try:
                     cur.close()
                     conn.close()
+                except Exception:
+                    pass
+
+        # GET /users/ids=<id1,id2,...> -> list minimal user info for selection by IDs
+        elif self.path.startswith("/users?") and "ids=" in self.path:
+            query_string = self.path.split('?', 1)[1]
+            query_params = {k: v[0] for k, v in cgi.parse_qs(query_string).items()}
+            
+            ids_str = query_params.get("ids")
+            if not ids_str:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Missing 'ids' query parameter"}).encode("utf-8"))
+                return
+
+            try:
+                user_ids = [int(i) for i in ids_str.split(',')]
+            except ValueError:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Invalid 'ids' format"}).encode("utf-8"))
+                return
+
+            # require a user id header (set by frontend via X-User-Id) or Authorization
+            header_uid = self.headers.get('X-User-Id') or self.headers.get('Authorization')
+            if not header_uid:
+                self._set_headers(403)
+                self.wfile.write(json.dumps({"error": "Forbidden"}).encode('utf-8'))
+                return
+
+            conn = None
+            cur = None
+            try:
+                conn = get_db_conn()
+                cur = conn.cursor(dictionary=True)
+                placeholders = ','.join(['%s'] * len(user_ids))
+                cur.execute(f"SELECT id, username, first_name, last_name, active FROM users WHERE id IN ({placeholders})", tuple(user_ids))
+                rows = cur.fetchall()
+                self._set_headers(200)
+                self.wfile.write(json.dumps(rows, default=str).encode('utf-8'))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            finally:
+                try:
+                    if cur:
+                        cur.close()
+                    if conn:
+                        conn.close()
                 except Exception:
                     pass
 
