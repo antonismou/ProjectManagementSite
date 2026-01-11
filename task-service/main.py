@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import mysql.connector.pooling
 import requests
 
-USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8080")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user-service:8080")
 
 # db_pool will be initialized in the run() function
 db_pool = None
@@ -74,6 +74,7 @@ class TaskHandler(BaseHTTPRequestHandler):
                     ccur = conn.cursor(dictionary=True)
                     ccur.execute("SELECT id, author_id, content, created_at, author_username FROM comments WHERE task_id=%s ORDER BY created_at ASC", (task_id,))
                     comments = ccur.fetchall()
+                    print(f"DEBUG: do_GET /tasks/<id> - Fetched comments: {comments}")
                     
                     task['comments'] = comments
                     ccur.execute("SELECT id, author_id, url, original_name, created_at FROM attachments WHERE task_id=%s ORDER BY created_at ASC", (task_id,))
@@ -241,16 +242,10 @@ class TaskHandler(BaseHTTPRequestHandler):
                 pass
 
     def handle_comment_creation(self):
-        try:
-            task_id = int(self.path.split('/')[-2])
-        except (IndexError, ValueError):
-            self._set_headers(400)
-            self.wfile.write(json.dumps({"error": "Invalid task ID"}).encode("utf-8"))
-            return
-
         conn = None
         cur = None
         try:
+            task_id = int(self.path.split('/')[-2])
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length)
             data = json.loads(body.decode("utf-8"))
@@ -271,24 +266,30 @@ class TaskHandler(BaseHTTPRequestHandler):
             cur = conn.cursor()
             
             # Fetch author username from user-service
-            author_username = "Unknown"
+            author_username = "Unknown" # Default to Unknown
             if author_id:
                 try:
                     request_headers = {}
-                    # Propagate authentication headers to user-service
                     if self.headers.get("X-User-Id"):
                         request_headers["X-User-Id"] = self.headers.get("X-User-Id")
                     if self.headers.get("X-User-Role"):
                         request_headers["X-User-Role"] = self.headers.get("X-User-Role")
 
-                    user_response = requests.get(f"{USER_SERVICE_URL}/users?ids={author_id}", headers=request_headers)
+                    user_service_url = f"{USER_SERVICE_URL}/users?ids={author_id}"
+                    user_response = requests.get(user_service_url, headers=request_headers)
                     user_response.raise_for_status()
                     user_data = user_response.json()
+
                     if user_data and len(user_data) > 0:
                         author_username = user_data[0].get('username', 'Unknown')
                 except requests.exceptions.RequestException as e:
-                    print(f"Error fetching author username from user-service: {e}")
+                    print(f"ERROR: handle_comment_creation - Request Exception fetching username: {e}")
+                    if hasattr(e, 'response') and e.response is not None:
+                        print(f"ERROR: handle_comment_creation - Response Status Code: {e.response.status_code}")
+                        print(f"ERROR: handle_comment_creation - Response Text: {e.response.text}")
                     # Continue with 'Unknown' if there's an error
+            
+            print(f"DEBUG: handle_comment_creation - Inserting comment with author_id={author_id}, author_username='{author_username}'") # Targeted log
 
             cur.execute("INSERT INTO comments (task_id, author_id, content, author_username) VALUES (%s, %s, %s, %s)",
                         (task_id, author_id, content, author_username))
