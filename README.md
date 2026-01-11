@@ -26,18 +26,35 @@ The entire stack is containerized. You can spin up the environment with a single
 
 1.  **Clone the repository** (if not already done):
     ```bash
-    git clone <repository-url>
-    cd <project-directory>
+    git clone https://github.com/antonismou/PLH513
+    cd PLH513
     ```
 
 2.  **Build and Run** using Docker Compose:
     ```bash
-    docker compose up --build
+    docker compose up -d --build
     ```
     *This command builds the Python images, pulls MySQL/Nginx/phpMyAdmin images, and starts the containers.*
 
 3.  **Verify Status:**
     Ensure all containers (`frontend`, `user-service`, `team-service`, `task-service`, `mysql`, `phpmyadmin`) are in the `Up` state.
+
+### ⚠️ Important Configuration Note
+The frontend application (`frontend/js/api.js`) currently has **hardcoded IP addresses** pointing to a cloud environment (`34.7.86.218`).
+
+**For local development, you MUST update this file:**
+
+1.  Open `frontend/js/api.js`.
+2.  Locate the service URL constants at the top of the file.
+3.  Change them to `localhost`:
+
+    ```javascript
+    // Change these lines:
+    const USER_SERVICE_URL = "http://localhost:8080";
+    const TEAM_SERVICE_URL = "http://localhost:8081";
+    const TASK_SERVICE_URL = "http://localhost:8082";
+    ```
+    *If you do not do this, the frontend will fail to connect to your local backend services.*
 
 ---
 
