@@ -4,6 +4,9 @@ import cgi
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import mysql.connector.pooling
+import requests
+
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8080")
 
 # db_pool will be initialized in the run() function
 db_pool = None
@@ -179,8 +182,63 @@ class TaskHandler(BaseHTTPRequestHandler):
                 pass
 
     def handle_task_creation(self):
-        # ... (implementation for creating a task)
-        pass
+        conn = None
+        cur = None
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+            data = json.loads(body.decode("utf-8"))
+
+            required_fields = ["title", "description", "team_id"]
+            if not all(field in data for field in required_fields):
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Missing required fields (title, description, team_id)"}).encode("utf-8"))
+                return
+
+            created_by = int(self.headers.get("X-User-Id", "0"))
+            if not created_by:
+                self._set_headers(401)
+                self.wfile.write(json.dumps({"error": "Unauthorized: X-User-Id header missing"}).encode("utf-8"))
+                return
+
+            conn = get_db_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO tasks (title, description, status, priority, due_date, team_id, created_by, assigned_to) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    data["title"],
+                    data["description"],
+                    data.get("status", "TODO"),
+                    data.get("priority", "MEDIUM"),
+                    data.get("due_date"),
+                    data["team_id"],
+                    created_by,
+                    data.get("assigned_to")
+                )
+            )
+            conn.commit()
+
+            task_id = cur.lastrowid
+            cur.execute("SELECT id, title, description, status, priority, due_date, team_id, created_by, assigned_to, created_at FROM tasks WHERE id=%s", (task_id,))
+            new_task = cur.fetchone()
+
+            self._set_headers(201)
+            self.wfile.write(json.dumps(new_task, default=str).encode("utf-8"))
+
+        except json.JSONDecodeError:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": "Invalid JSON payload"}).encode("utf-8"))
+        except Exception as e:
+            self._set_headers(500)
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        finally:
+            try:
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
 
     def handle_comment_creation(self):
         try:
