@@ -7,16 +7,16 @@ const goLoginLink = document.getElementById("go-login");
 if (goSignupLink && signupForm && loginForm) {
   goSignupLink.addEventListener("click", (e) => {
     e.preventDefault();
-    loginForm.classList.add("hidden");
-    signupForm.classList.remove("hidden");
+    loginForm.classList.add("d-none");
+    signupForm.classList.remove("d-none");
   });
 }
 
 if (goLoginLink && signupForm && loginForm) {
   goLoginLink.addEventListener("click", (e) => {
     e.preventDefault();
-    signupForm.classList.add("hidden");
-    loginForm.classList.remove("hidden");
+    signupForm.classList.add("d-none");
+    loginForm.classList.remove("d-none");
   });
 }
 
@@ -38,7 +38,7 @@ if (loginForm) {
       // After login always go to dashboard
       window.location.href = "dashboard.html";
     } catch (err) {
-      alert(err.error || "Login failed");
+      showToast(err.error || "Login failed", true);
     }
   });
 }
@@ -58,12 +58,12 @@ if (signupForm) {
 
     try {
       await apiRequest(USER_SERVICE_URL, "/signup", "POST", data);
-      alert("Εγγραφή επιτυχής. Ο λογαριασμός σου θα ενεργοποιηθεί από τον διαχειριστή. Παρακαλώ περίμενε.");
+      showToast("Signup successful. Your account will be activated by an administrator.");
       signupForm.reset();
-      signupForm.classList.add("hidden");
-      loginForm.classList.remove("hidden");
+      signupForm.classList.add("d-none");
+      loginForm.classList.remove("d-none");
     } catch (err) {
-      alert(err.error || "Signup failed");
+      showToast(err.error || "Signup failed", true);
     }
   });
 }

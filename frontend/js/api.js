@@ -63,3 +63,36 @@ async function apiRequest(baseUrl, path, method = "GET", body = null, token = nu
   }
 }
 
+function showToast(message, isError = false) {
+    const toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        console.error('No toast container found on the page.');
+        return;
+    }
+
+    const toastId = 'toast-' + Math.random().toString(36).substr(2, 9);
+    const toastHeaderClass = isError ? 'bg-danger text-white' : 'bg-success text-white';
+    const toastTitle = isError ? 'Error' : 'Success';
+
+    const toastHtml = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header ${toastHeaderClass}">
+                <strong class="me-auto">${toastTitle}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+    toast.show();
+
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+    });
+}
+

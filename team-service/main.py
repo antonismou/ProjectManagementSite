@@ -309,6 +309,24 @@ class TeamHandler(BaseHTTPRequestHandler):
                 cur2.execute(sql, tuple(values))
                 conn.commit()
                 cur2.close()
+
+                # if leader is changed, update user role to TEAM_LEADER if they are a MEMBER
+                if "leader_id" in data and data["leader_id"] is not None:
+                    try:
+                        new_leader_id = int(data["leader_id"])
+                        cur_user = conn.cursor(dictionary=True)
+                        cur_user.execute("SELECT role FROM users WHERE id=%s", (new_leader_id,))
+                        user_to_promote = cur_user.fetchone()
+                        cur_user.close()
+                        if user_to_promote and user_to_promote['role'] == 'MEMBER':
+                            cur_update_user = conn.cursor()
+                            cur_update_user.execute("UPDATE users SET role='TEAM_LEADER' WHERE id=%s", (new_leader_id,))
+                            conn.commit()
+                            cur_update_user.close()
+                    except Exception as e:
+                        # log error, but don't fail the whole request
+                        print(f"Error updating user role: {e}")
+
                 cur.execute("SELECT id, name, description, leader_id, members FROM teams WHERE id=%s", (team_id,))
                 updated = cur.fetchone()
                 if updated and updated.get("members"):

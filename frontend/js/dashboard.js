@@ -1,9 +1,3 @@
-function logout() {
-  console.log("Logout function called");
-  localStorage.clear();
-  window.location.href = "index.html";
-}
-
 const currentUser = requireAuth();
 
 // selectors
@@ -16,14 +10,18 @@ const colTodo = document.getElementById("col-todo");
 const colInProgress = document.getElementById("col-inprogress");
 const colDone = document.getElementById("col-done");
 
-
-// demo tasks – αργότερα θα έρχονται από TASK_SERVICE_URL
-const demoTasks = [
-  { id: 1, title: "Στήσιμο User Service", status: "TODO", priority: "HIGH", due_date: "2026-01-15" },
-  { id: 2, title: "Σχεδιασμός DB", status: "IN_PROGRESS", priority: "MEDIUM", due_date: "2026-01-12" },
-  { id: 3, title: "Frontend Dashboard", status: "DONE", priority: "LOW", due_date: "2026-01-10" },
-  { id: 4, title: "Team Service API", status: "TODO", priority: "MEDIUM", due_date: "2026-01-18" }
-];
+function getPriorityClass(priority) {
+    switch (priority) {
+        case 'HIGH':
+            return { bg: 'bg-danger', border: 'priority-high' };
+        case 'MEDIUM':
+            return { bg: 'bg-warning', border: 'priority-medium' };
+        case 'LOW':
+            return { bg: 'bg-success', border: 'priority-low' };
+        default:
+            return { bg: 'bg-secondary', border: '' };
+    }
+}
 
 function renderTasks(tasks) {
   colTodo.innerHTML = "";
@@ -33,26 +31,24 @@ function renderTasks(tasks) {
   let todo = 0, inProg = 0, done = 0;
 
   tasks.forEach(task => {
+    const priority = getPriorityClass(task.priority);
     const card = document.createElement("div");
-    card.className = "task-card";
+    card.className = `card task-card ${priority.border}`;
+    
+    card.innerHTML = `
+        <div class="card-body">
+            <h5 class="card-title">${task.title}</h5>
+            <p class="card-subtitle mb-2 text-muted">Due: ${task.due_date || "-"}</p>
+            <span class="badge ${priority.bg}">${task.priority}</span>
+        </div>
+    `;
+    
+    // Add click event to go to task page
+    card.addEventListener('click', () => {
+        window.location.href = `task.html?id=${task.id}`;
+    });
+    card.style.cursor = 'pointer';
 
-    const title = document.createElement("h4");
-    title.textContent = task.title;
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = `Due: ${task.due_date || "-"}`;
-
-    const prioritySpan = document.createElement("span");
-    prioritySpan.className = "badge-priority " +
-      (task.priority === "HIGH" ? "priority-high"
-        : task.priority === "LOW" ? "priority-low"
-        : "priority-medium");
-    prioritySpan.textContent = task.priority;
-
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(prioritySpan);
 
     if (task.status === "TODO") {
       colTodo.appendChild(card);
@@ -76,14 +72,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   const currentUser = requireAuth();
   if (!currentUser) return;
 
+  // Set username in navbar
+  const usernameDisplay = document.getElementById('username-display');
+  if(usernameDisplay) {
+    usernameDisplay.textContent = currentUser.username;
+  }
+
+  // Add admin link if user is ADMIN
+  if (currentUser.role === 'ADMIN') {
+    const container = document.getElementById('admin-link-container');
+    if (container) {
+        const a = document.createElement('a');
+        a.href = 'admin.html';
+        a.textContent = 'Admin';
+        a.className = 'nav-link';
+        container.appendChild(a);
+    }
+  }
+
   const token = localStorage.getItem("token");
   try {
-    // τώρα φέρνει από Task Service
     const tasks = await apiRequest(TASK_SERVICE_URL, "/tasks", "GET", null, token);
     renderTasks(tasks);
   } catch (err) {
     console.error("Failed to load tasks:", err);
-    // fallback στα demo tasks
+    // fallback to demo tasks if API fails
+    const demoTasks = [
+        { id: 1, title: "User Service Setup", status: "TODO", priority: "HIGH", due_date: "2026-01-15" },
+        { id: 2, title: "Database Design", status: "IN_PROGRESS", priority: "MEDIUM", due_date: "2026-01-12" },
+        { id: 3, title: "Frontend Dashboard", status: "DONE", priority: "LOW", due_date: "2026-01-10" },
+        { id: 4, title: "Team Service API", status: "TODO", priority: "MEDIUM", due_date: "2026-01-18" }
+    ];
     renderTasks(demoTasks);
   }
 });

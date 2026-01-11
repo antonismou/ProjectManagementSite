@@ -231,14 +231,21 @@ class TaskHandler(BaseHTTPRequestHandler):
             ctype = self.headers.get('Content-Type', '')
             # handle multipart file upload
             if ctype.startswith('multipart/form-data'):
+                print("--- ATTACHMENT UPLOAD START ---")
+                print(f"Content-Type: {ctype}")
+                print(f"Content-Length: {self.headers.get('Content-Length', 0)}")
                 try:
                     length = int(self.headers.get('Content-Length', 0))
                     fs = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={'REQUEST_METHOD':'POST', 'CONTENT_TYPE': ctype, 'CONTENT_LENGTH': str(length)})
-                    # FieldStorage may raise or behave oddly on membership tests; access safely
+                    print(f"cgi.FieldStorage keys: {fs.keys()}")
+
                     try:
                         filefield = fs['file']
-                    except Exception:
+                        print("Found 'file' field in form-data.")
+                    except Exception as e:
                         filefield = None
+                        print(f"Did not find 'file' field in form-data. Error: {e}")
+
                     try:
                         original = fs.getvalue('original_name') if 'original_name' in fs else None
                     except Exception:
@@ -247,12 +254,15 @@ class TaskHandler(BaseHTTPRequestHandler):
                         author = int(self.headers.get('X-User-Id') or 0)
                     except Exception:
                         author = 0
-                    # FieldStorage doesn't support truthiness checks
+                    
                     if filefield is None or not getattr(filefield, 'filename', None):
+                        print("File field is missing or has no filename.")
                         self._set_headers(400)
                         self.wfile.write(json.dumps({"error": "No file provided"}).encode('utf-8'))
                         return
+                    
                     filename = getattr(filefield, 'filename')
+                    print(f"Received filename: {filename}")
                     ext = os.path.splitext(filename)[1]
                     safe_name = f"{uuid.uuid4().hex}{ext}"
                     uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -263,7 +273,8 @@ class TaskHandler(BaseHTTPRequestHandler):
                         while chunk:
                             out.write(chunk)
                             chunk = filefield.file.read(8192)
-                    # store attachment record pointing to a served file path
+                    
+                    print(f"Saved file to: {filepath}")
                     url = f"/files/{safe_name}"
                     conn = get_db_conn()
                     cur = conn.cursor()
@@ -272,7 +283,10 @@ class TaskHandler(BaseHTTPRequestHandler):
                     cur.close()
                     self._set_headers(201)
                     self.wfile.write(json.dumps({"status": "ok", "url": url}).encode('utf-8'))
+                    print("--- ATTACHMENT UPLOAD END ---")
                 except Exception as e:
+                    print(f"--- ATTACHMENT UPLOAD FAILED ---")
+                    print(f"Error: {e}")
                     self._set_headers(500)
                     self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
                 finally:
