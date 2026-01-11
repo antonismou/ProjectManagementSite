@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   due_date DATE,
   team_id INT,
   created_by INT,
-  assigned_to INT
+  assigned_to INT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS comments (
