@@ -28,7 +28,14 @@ class TaskHandler(BaseHTTPRequestHandler):
             return {}
         try:
             ids_str = ",".join(map(str, user_ids))
-            response = requests.get(f"{USER_SERVICE_URL}/users?ids={ids_str}")
+            # Propagate X-User-Id and X-User-Role headers for authentication with user-service
+            request_headers = {}
+            if self.headers.get("X-User-Id"):
+                request_headers["X-User-Id"] = self.headers.get("X-User-Id")
+            if self.headers.get("X-User-Role"):
+                request_headers["X-User-Role"] = self.headers.get("X-User-Role")
+            
+            response = requests.get(f"{USER_SERVICE_URL}/users?ids={ids_str}", headers=request_headers)
             response.raise_for_status() # Raise an exception for HTTP errors
             users_data = response.json()
             return {user['id']: user for user in users_data}
