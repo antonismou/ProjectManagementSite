@@ -337,29 +337,35 @@ class TeamHandler(BaseHTTPRequestHandler):
 
 def run(port=8081):
     import time
-    for _ in range(30):
+    conn = None
+    cur = None
+    for _ in range(30): # Retry database connection for up to 30 seconds
         try:
-            c = get_db_conn()
-            c.close()
+            conn = get_db_conn()
+            cur = conn.cursor()
+            db_name = os.getenv("DB_NAME", "pms")
+            
+            cur.execute("SHOW COLUMNS FROM teams LIKE 'created_at'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE teams ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+                conn.commit()
+                print('team-service: added created_at column to teams')
+            
+            cur.close()
+            conn.close()
+            print("Team Service: Successfully connected to the database pool and checked schema.")
             break
-        except Exception:
+        except Exception as e:
+            print(f"Team Service: Waiting for database or checking schema... ({e})")
             time.sleep(1)
-    
-    try:
-        conn = get_db_conn()
-        cur = conn.cursor()
-        db_name = os.getenv("DB_NAME", "pms")
-        
-        cur.execute("SHOW COLUMNS FROM teams LIKE 'created_at'")
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE teams ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
-            conn.commit()
-            print('team-service: added created_at column to teams')
-        
-        cur.close()
-        conn.close()
-    except Exception as e:
-        print('team-service: Schema migration check failed:', e)
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+    else:
+        print("Team Service: Could not connect to the database or check schema after multiple attempts. Exiting.")
+        return # Exit if unable to connect to DB
 
     server_address = ("", port)
     httpd = HTTPServer(server_address, TeamHandler)

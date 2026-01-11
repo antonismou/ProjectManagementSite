@@ -270,6 +270,20 @@ class TaskHandler(BaseHTTPRequestHandler):
                 pass
 
 def run(port=8082):
+    import time
+    for _ in range(30): # Retry database connection for up to 30 seconds
+        try:
+            conn = get_db_conn()
+            conn.close() # Return connection to pool
+            print("Task Service: Successfully connected to the database pool.")
+            break
+        except Exception as e:
+            print(f"Task Service: Waiting for database... ({e})")
+            time.sleep(1)
+    else:
+        print("Task Service: Could not connect to the database after multiple attempts. Exiting.")
+        return # Exit if unable to connect to DB
+
     server_address = ("", port)
     httpd = HTTPServer(server_address, TaskHandler)
     print(f"Task Service running on http://localhost:{port}")
