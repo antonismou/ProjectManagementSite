@@ -358,6 +358,7 @@ def run(port=8082):
             conn = get_db_conn() # Get a connection from the pool
             cur = conn.cursor()
             cur.execute("SELECT 1") # Simple query to check connection
+            cur.fetchone() # Consume the result
             cur.close()
             conn.close() # Return connection to pool
             print("Task Service: Successfully connected to the database pool.")
@@ -365,11 +366,7 @@ def run(port=8082):
         except Exception as e:
             print(f"Task Service: Waiting for database... ({e})")
             time.sleep(1)
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                conn.close()
+        # Removed the redundant 'finally' block here to prevent double-closing connections
     else:
         print("Task Service: Could not connect to the database after multiple attempts. Exiting.")
         return # Exit if unable to connect to DB
