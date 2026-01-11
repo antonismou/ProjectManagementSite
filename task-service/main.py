@@ -5,18 +5,12 @@ import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import mysql.connector.pooling
 
-# Database connection pool
-db_pool = mysql.connector.pooling.MySQLConnectionPool(
-    pool_name="task_service_pool",
-    pool_size=5, # You can adjust this based on your expected load
-    host=os.getenv("DB_HOST", "localhost"),
-    user=os.getenv("DB_USER", "root"),
-    password=os.getenv("DB_PASS", ""),
-    database=os.getenv("DB_NAME", "pms"),
-    autocommit=True
-)
+# db_pool will be initialized in the run() function
+db_pool = None
 
 def get_db_conn():
+    if db_pool is None:
+        raise Exception("Database connection pool not initialized.")
     return db_pool.get_connection()
 
 class TaskHandler(BaseHTTPRequestHandler):
@@ -346,15 +340,36 @@ class TaskHandler(BaseHTTPRequestHandler):
 
 def run(port=8082):
     import time
+    global db_pool # Declare db_pool as global
+    conn = None
+    cur = None
     for _ in range(30): # Retry database connection for up to 30 seconds
         try:
-            conn = get_db_conn()
+            if db_pool is None: # Initialize pool only if not already initialized within the loop
+                db_pool = mysql.connector.pooling.MySQLConnectionPool(
+                    pool_name="task_service_pool",
+                    pool_size=5, # You can adjust this based on your expected load
+                    host=os.getenv("DB_HOST", "localhost"),
+                    user=os.getenv("DB_USER", "root"),
+                    password=os.getenv("DB_PASS", ""),
+                    database=os.getenv("DB_NAME", "pms"),
+                    autocommit=True
+                )
+            conn = get_db_conn() # Get a connection from the pool
+            cur = conn.cursor()
+            cur.execute("SELECT 1") # Simple query to check connection
+            cur.close()
             conn.close() # Return connection to pool
             print("Task Service: Successfully connected to the database pool.")
             break
         except Exception as e:
             print(f"Task Service: Waiting for database... ({e})")
             time.sleep(1)
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
     else:
         print("Task Service: Could not connect to the database after multiple attempts. Exiting.")
         return # Exit if unable to connect to DB

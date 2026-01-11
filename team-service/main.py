@@ -3,18 +3,12 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import mysql.connector.pooling
 
-# Database connection pool
-db_pool = mysql.connector.pooling.MySQLConnectionPool(
-    pool_name="team_service_pool",
-    pool_size=5, # You can adjust this based on your expected load
-    host=os.getenv("DB_HOST", "localhost"),
-    user=os.getenv("DB_USER", "root"),
-    password=os.getenv("DB_PASS", ""),
-    database=os.getenv("DB_NAME", "pms"),
-    autocommit=True
-)
+# db_pool will be initialized in the run() function
+db_pool = None
 
 def get_db_conn():
+    if db_pool is None:
+        raise Exception("Database connection pool not initialized.")
     return db_pool.get_connection()
 
 class TeamHandler(BaseHTTPRequestHandler):
@@ -337,11 +331,21 @@ class TeamHandler(BaseHTTPRequestHandler):
 
 def run(port=8081):
     import time
+    global db_pool # Declare db_pool as global
     conn = None
     cur = None
     for _ in range(30): # Retry database connection for up to 30 seconds
         try:
-            conn = get_db_conn()
+            db_pool = mysql.connector.pooling.MySQLConnectionPool(
+                pool_name="team_service_pool",
+                pool_size=5, # You can adjust this based on your expected load
+                host=os.getenv("DB_HOST", "localhost"),
+                user=os.getenv("DB_USER", "root"),
+                password=os.getenv("DB_PASS", ""),
+                database=os.getenv("DB_NAME", "pms"),
+                autocommit=True
+            )
+            conn = get_db_conn() # Get a connection from the newly initialized pool
             cur = conn.cursor()
             db_name = os.getenv("DB_NAME", "pms")
             
