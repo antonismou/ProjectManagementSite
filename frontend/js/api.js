@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+=======
+// Ρύθμιση URLs των microservices (προς το παρόν placeholders)
+const USER_SERVICE_URL = "http://10.164.0.2:8080";
+const TEAM_SERVICE_URL = "http://10.164.0.2:8081";
+const TASK_SERVICE_URL = "http://10.164.0.2:8082";
+>>>>>>> parent of ac5994a (Update api.js)
 
 let EXTERNAL_IP;
 async function initExternalIP() {
@@ -19,9 +26,9 @@ async function getTeamServiceUrl() { return `http://${EXTERNAL_IP}:8081`; }
 async function getTaskServiceUrl() { return `http://${EXTERNAL_IP}:8082`; }
 
 // Ρύθμιση URLs των microservices (προς το παρόν placeholders)
-const USER_SERVICE_URL = await getUserServiceUrl();
-const TEAM_SERVICE_URL = await getTeamServiceUrl();
-const TASK_SERVICE_URL = await getTaskServiceUrl();
+const USER_SERVICE_URL = getUserServiceUrl();
+const TEAM_SERVICE_URL = getTeamServiceUrl();
+const TASK_SERVICE_URL = getTaskServiceUrl();
 
 async function apiRequest(path, method = "GET", body = null, token = null) {
   const baseUrl = USER_SERVICE_URL; // Default to user service, or pass as param
