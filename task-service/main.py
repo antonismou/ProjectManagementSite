@@ -24,7 +24,9 @@ def get_db_conn():
 
 class TaskHandler(BaseHTTPRequestHandler):
     def _fetch_user_details_map(self, user_ids):
+        print(f"DEBUG: Entering _fetch_user_details_map with user_ids: {user_ids}")
         if not user_ids:
+            print("DEBUG: _fetch_user_details_map: No user IDs provided, returning empty map.")
             return {}
         try:
             ids_str = ",".join(map(str, user_ids))
