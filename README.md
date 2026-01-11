@@ -1,35 +1,103 @@
-# PLH513 - Local Development with Docker
+# Project Management System (PMS)
 
-This repository contains a small microservices demo: `user-service`, `team-service`, `task-service` and a static `frontend`.
+A comprehensive, microservices-based application for managing teams, users, and tasks. This project demonstrates a distributed architecture using Python-based microservices, a MySQL database, and a responsive frontend interface.
 
-What I changed
-- Converted services to persist data in MySQL (added `db/init.sql` with schema and default admin user).
-- Updated `docker-compose.yml` to mount the DB init script and added a `frontend` nginx service.
-- Added `Dockerfile`s for each Python service and installed `mysql-connector-python`.
-- Modified service code to use MySQL (read/write) and added simple role-enforcement hooks.
+## 🚀 Project Overview
 
-Run the stack
-1. Build and start everything:
+**Goal:** To provide a streamlined environment for collaboration where Administrators can manage users, Team Leaders can organize groups, and Members can track and complete tasks.
 
-```bash
-docker compose up --build
-```
+**Key Technologies:**
+*   **Frontend:** Vanilla JavaScript, HTML5, CSS3 (Served via Nginx).
+*   **Backend:** Python 3.13 (Custom `http.server` microservices).
+*   **Database:** MySQL 8.0.
+*   **Infrastructure:** Docker & Docker Compose.
+*   **Tools:** phpMyAdmin for database management.
 
-2. After containers are up:
-- Frontend: http://localhost:8000
-- User service API: http://localhost:8080
-- Team service API: http://localhost:8081
-- Task service API: http://localhost:8082
-- MySQL: 3306 (user: `pms`, password: `pms`, database: `pms`)
+---
 
-Notes and troubleshooting
-- The MySQL init script `db/init.sql` creates tables and a default admin user (`username: admin`, `password: admin`). This only runs the first time the MySQL data directory is empty.
-- The services include a small startup wait loop that retries connecting to the database for ~30s to reduce race conditions.
-- Passwords are stored in plain text for now (kept simple for the demo). Do not use this in production.
+## 🛠️ Installation & Setup
 
-Next steps I can take for you
-- Re-apply or enhance role-based checks across services and frontend UI.
-- Add API tests and/or Postman collection.
-- Add Docker healthchecks and improved startup ordering.
+### Prerequisites
+*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+*   Git (to clone the repository).
 
-If you'd like, I can now re-add role propagation in the frontend and tighten permission enforcement across endpoints.
+### Quick Start
+The entire stack is containerized. You can spin up the environment with a single command.
+
+1.  **Clone the repository** (if not already done):
+    ```bash
+    git clone <repository-url>
+    cd <project-directory>
+    ```
+
+2.  **Build and Run** using Docker Compose:
+    ```bash
+    docker compose up --build
+    ```
+    *This command builds the Python images, pulls MySQL/Nginx/phpMyAdmin images, and starts the containers.*
+
+3.  **Verify Status:**
+    Ensure all containers (`frontend`, `user-service`, `team-service`, `task-service`, `mysql`, `phpmyadmin`) are in the `Up` state.
+
+---
+
+## 🗄️ Database Setup
+
+The database infrastructure is fully automated.
+
+*   **Initialization:** On the first run, the `db/init.sql` script is automatically executed by the MySQL container. This creates the `pms` database, tables (`users`, `teams`, `tasks`, etc.), and populates seed data.
+*   **Persistence:** Data is persisted in a Docker volume named `mysql_data`.
+*   **Connection Details:**
+    *   **Host:** `mysql` (internal docker network) / `localhost` (external).
+    *   **Port:** `3306`
+    *   **Database:** `pms`
+    *   **User:** `pms` / **Password:** `pms`
+
+### Management Interface
+You can access **phpMyAdmin** to inspect the database directly:
+*   **URL:** [http://localhost:8083](http://localhost:8083)
+*   **Server:** `mysql`
+*   **Username:** `pms`
+*   **Password:** `pms`
+
+---
+
+## 🖥️ UI Usage & Features
+
+### Accessing the Application
+Open your browser and navigate to the Frontend URL:
+👉 **[http://localhost:8000](http://localhost:8000)**
+
+### Login Credentials (Demo Data)
+The system comes pre-loaded with users for testing different roles:
+
+| Role | Username | Password | Permissions |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin` | `admin` | Manage users, view all data. |
+| **Team Leader** | `leader1` | `leader` | Create teams, assign tasks. |
+| **Member** | `member1` | `member` | View and complete assigned tasks. |
+
+### Navigation Guide
+1.  **Login:** Enter valid credentials on the landing page.
+2.  **Dashboard:** View a summary of your active tasks and team status.
+3.  **Profile:** Update your personal information (availability status, details).
+4.  **Admin Panel (Admin only):** Create or delete users and manage system roles.
+5.  **Teams (Leader/Admin):** Create new project teams and assign members.
+6.  **My Tasks:** Filter tasks by status (Todo, In Progress, Done) and update progress.
+
+---
+
+## 🔌 API Endpoints (For Developers)
+
+The backend is split into three distinct microservices accessible locally:
+
+*   **User Service:** `http://localhost:8080` (Auth, User CRUD)
+*   **Team Service:** `http://localhost:8081` (Team logic)
+*   **Task Service:** `http://localhost:8082` (Task CRUD, Attachments)
+
+---
+
+## ⚠️ Troubleshooting
+
+*   **Database Connection Errors:** The services include a retry mechanism (30s) on startup to wait for MySQL. If errors persist, restart the stack: `docker compose restart`.
+*   **Port Conflicts:** Ensure ports `8000`, `8080-8083`, and `3306` are free on your host machine.
