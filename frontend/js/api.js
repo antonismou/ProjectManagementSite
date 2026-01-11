@@ -1,7 +1,7 @@
 // Ρύθμιση URLs των microservices (προς το παρόν placeholders)
-const USER_SERVICE_URL = "http://localhost:8080";
-const TEAM_SERVICE_URL = "http://localhost:8081";
-const TASK_SERVICE_URL = "http://localhost:8082";
+const USER_SERVICE_URL = "http://34.7.86.218:8080";
+const TEAM_SERVICE_URL = "http://34.7.86.218:8081";
+const TASK_SERVICE_URL = "http://34.7.86.218:8082";
 
 async function apiRequest(baseUrl, path, method = "GET", body = null, token = null) {
   console.log("apiRequest:", baseUrl + path, method, {token: !!token});  // DEBUG
