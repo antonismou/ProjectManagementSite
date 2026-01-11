@@ -4,9 +4,6 @@ import cgi
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import mysql.connector.pooling
-import requests
-
-USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8080")
 
 # Database connection pool
 db_pool = mysql.connector.pooling.MySQLConnectionPool(
@@ -23,37 +20,6 @@ def get_db_conn():
     return db_pool.get_connection()
 
 class TaskHandler(BaseHTTPRequestHandler):
-    def _fetch_user_details_map(self, user_ids):
-        print(f"DEBUG: Entering _fetch_user_details_map with user_ids: {user_ids}")
-        if not user_ids:
-            print("DEBUG: _fetch_user_details_map: No user IDs provided, returning empty map.")
-            return {}
-        try:
-            ids_str = ",".join(map(str, user_ids))
-            request_headers = {}
-            if self.headers.get("X-User-Id"):
-                request_headers["X-User-Id"] = self.headers.get("X-User-Id")
-            if self.headers.get("X-User-Role"):
-                request_headers["X-User-Role"] = self.headers.get("X-User-Role")
-            
-            print(f"DEBUG: _fetch_user_details_map - Requesting URL: {USER_SERVICE_URL}/users?ids={ids_str}")
-            print(f"DEBUG: _fetch_user_details_map - Request Headers: {request_headers}")
-
-            response = requests.get(f"{USER_SERVICE_URL}/users?ids={ids_str}", headers=request_headers)
-            
-            print(f"DEBUG: _fetch_user_details_map - Response Status Code: {response.status_code}")
-            print(f"DEBUG: _fetch_user_details_map - Response Text: {response.text}")
-
-            response.raise_for_status() # Raise an exception for HTTP errors
-            users_data = response.json()
-            print(f"DEBUG: _fetch_user_details_map - Parsed Users Data: {users_data}")
-            return {user['id']: user for user in users_data}
-        except requests.exceptions.RequestException as e:
-            print(f"ERROR: _fetch_user_details_map - Request Exception: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                print(f"ERROR: _fetch_user_details_map - Response Status Code: {e.response.status_code}")
-                print(f"ERROR: _fetch_user_details_map - Response Text: {e.response.text}")
-            return {}
     
     def _set_headers(self, status=200, content_type="application/json"):
         self.send_response(status)
@@ -109,17 +75,9 @@ class TaskHandler(BaseHTTPRequestHandler):
                         return
 
                     ccur = conn.cursor(dictionary=True)
-                    ccur.execute("SELECT id, author_id, content, created_at FROM comments WHERE task_id=%s ORDER BY created_at ASC", (task_id,))
+                    ccur.execute("SELECT id, author_id, content, created_at, author_username FROM comments WHERE task_id=%s ORDER BY created_at ASC", (task_id,))
                     comments = ccur.fetchall()
                     
-                    author_ids = list(set([comment['author_id'] for comment in comments if 'author_id' in comment]))
-                    user_map = self._fetch_user_details_map(author_ids)
-
-                    for comment in comments:
-                        author_id = comment.get('author_id')
-                        user = user_map.get(author_id)
-                        comment['author_name'] = user.get('username', 'Unknown') if user else 'Unknown' # Use username or 'Unknown'
-
                     task['comments'] = comments
                     ccur.execute("SELECT id, author_id, url, original_name, created_at FROM attachments WHERE task_id=%s ORDER BY created_at ASC", (task_id,))
                     task['attachments'] = ccur.fetchall()
@@ -259,12 +217,33 @@ class TaskHandler(BaseHTTPRequestHandler):
             
             conn = get_db_conn()
             cur = conn.cursor()
-            cur.execute("INSERT INTO comments (task_id, author_id, content) VALUES (%s, %s, %s)",
-                        (task_id, author_id, content))
+            
+            # Fetch author username from user-service
+            author_username = "Unknown"
+            if author_id:
+                try:
+                    request_headers = {}
+                    # Propagate authentication headers to user-service
+                    if self.headers.get("X-User-Id"):
+                        request_headers["X-User-Id"] = self.headers.get("X-User-Id")
+                    if self.headers.get("X-User-Role"):
+                        request_headers["X-User-Role"] = self.headers.get("X-User-Role")
+
+                    user_response = requests.get(f"{USER_SERVICE_URL}/users?ids={author_id}", headers=request_headers)
+                    user_response.raise_for_status()
+                    user_data = user_response.json()
+                    if user_data and len(user_data) > 0:
+                        author_username = user_data[0].get('username', 'Unknown')
+                except requests.exceptions.RequestException as e:
+                    print(f"Error fetching author username from user-service: {e}")
+                    # Continue with 'Unknown' if there's an error
+
+            cur.execute("INSERT INTO comments (task_id, author_id, content, author_username) VALUES (%s, %s, %s, %s)",
+                        (task_id, author_id, content, author_username))
             conn.commit()
             
             comment_id = cur.lastrowid
-            cur.execute("SELECT id, author_id, content, created_at FROM comments WHERE id=%s", (comment_id,))
+            cur.execute("SELECT id, author_id, content, created_at, author_username FROM comments WHERE id=%s", (comment_id,))
             new_comment = cur.fetchone()
 
             self._set_headers(201)

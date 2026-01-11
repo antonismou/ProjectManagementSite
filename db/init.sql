@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS comments (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Add author_username column to comments table
+-- This is for simplifying retrieval of comment author names without additional microservice calls on read path.
+ALTER TABLE comments ADD COLUMN author_username VARCHAR(100) DEFAULT 'Unknown';
+
 CREATE TABLE IF NOT EXISTS attachments (
   id INT AUTO_INCREMENT PRIMARY KEY,
   task_id INT NOT NULL,
