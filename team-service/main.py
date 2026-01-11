@@ -349,7 +349,7 @@ def run(port=8081):
             if not cur.fetchone():
                 cur.execute("ALTER TABLE teams ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
                 conn.commit()
-                print('team-service: added created_at column to teams')
+                print("team-service: added created_at column to teams")
             
             cur.close()
             conn.close()
@@ -358,11 +358,7 @@ def run(port=8081):
         except Exception as e:
             print(f"Team Service: Waiting for database or checking schema... ({e})")
             time.sleep(1)
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                conn.close()
+        # Removed the redundant 'finally' block here to prevent double-closing connections
     else:
         print("Team Service: Could not connect to the database or check schema after multiple attempts. Exiting.")
         return # Exit if unable to connect to DB
