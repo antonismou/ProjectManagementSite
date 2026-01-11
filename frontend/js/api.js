@@ -1,4 +1,5 @@
 // Ρύθμιση URLs των microservices (προς το παρόν placeholders)
+const baseUrl = "http://34.7.86.218:8000";
 const USER_SERVICE_URL = "http://34.7.86.218:8080";
 const TEAM_SERVICE_URL = "http://34.7.86.218:8081";
 const TASK_SERVICE_URL = "http://34.7.86.218:8082";
