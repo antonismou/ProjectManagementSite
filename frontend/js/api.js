@@ -23,9 +23,9 @@ const USER_SERVICE_URL = getUserServiceUrl();
 const TEAM_SERVICE_URL = getTeamServiceUrl();
 const TASK_SERVICE_URL = getTaskServiceUrl();
 
-async function apiRequest(baseUrl, path, method = "GET", body = null, token = null) {
-  console.log("apiRequest:", baseUrl + path, method, {token: !!token});  // DEBUG
-  
+async function apiRequest(path, method = "GET", body = null, token = null) {
+  const baseUrl = await getUserServiceUrl(); // Default to user service, or pass as param
+  console.log("apiRequest:", baseUrl + path, method, {token: !!token});
   const headers = {};
   
   // Only set JSON content type if body is not FormData
