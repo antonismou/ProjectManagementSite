@@ -1,16 +1,21 @@
 import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import mysql.connector
+import mysql.connector.pooling
+
+# Database connection pool
+db_pool = mysql.connector.pooling.MySQLConnectionPool(
+    pool_name="team_service_pool",
+    pool_size=5, # You can adjust this based on your expected load
+    host=os.getenv("DB_HOST", "localhost"),
+    user=os.getenv("DB_USER", "root"),
+    password=os.getenv("DB_PASS", ""),
+    database=os.getenv("DB_NAME", "pms"),
+    autocommit=True
+)
 
 def get_db_conn():
-    return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASS", ""),
-        database=os.getenv("DB_NAME", "pms"),
-        autocommit=True,
-    )
+    return db_pool.get_connection()
 
 class TeamHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status=200, content_type="application/json"):
@@ -102,7 +107,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals() and cur:
                         cur.close()
-                    if 'conn' in locals() and conn and conn.is_connected():
+                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
                         conn.close()
                 except Exception:
                     pass
@@ -181,7 +186,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals() and cur:
                         cur.close()
-                    if 'conn' in locals() and conn and conn.is_connected():
+                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
                         conn.close()
                 except Exception:
                     pass
@@ -279,7 +284,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals() and cur:
                         cur.close()
-                    if 'conn' in locals() and conn and conn.is_connected():
+                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
                         conn.close()
                 except Exception:
                     pass
@@ -321,7 +326,7 @@ class TeamHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals() and cur:
                         cur.close()
-                    if 'conn' in locals() and conn and conn.is_connected():
+                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
                         conn.close()
                 except Exception:
                     pass

@@ -3,16 +3,21 @@ import os
 import cgi
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import mysql.connector
+import mysql.connector.pooling
+
+# Database connection pool
+db_pool = mysql.connector.pooling.MySQLConnectionPool(
+    pool_name="task_service_pool",
+    pool_size=5, # You can adjust this based on your expected load
+    host=os.getenv("DB_HOST", "localhost"),
+    user=os.getenv("DB_USER", "root"),
+    password=os.getenv("DB_PASS", ""),
+    database=os.getenv("DB_NAME", "pms"),
+    autocommit=True
+)
 
 def get_db_conn():
-    return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASS", ""),
-        database=os.getenv("DB_NAME", "pms"),
-        autocommit=True,
-    )
+    return db_pool.get_connection()
 
 class TaskHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status=200, content_type="application/json"):
@@ -84,7 +89,7 @@ class TaskHandler(BaseHTTPRequestHandler):
                 try:
                     if 'cur' in locals():
                         cur.close()
-                    if 'conn' in locals() and conn.is_connected():
+                    if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
                         conn.close()
                 except Exception:
                     pass
@@ -157,7 +162,8 @@ class TaskHandler(BaseHTTPRequestHandler):
             cur.execute("INSERT INTO attachments (task_id, author_id, url, original_name) VALUES (%s, %s, %s, %s)", (task_id, author_id, url, original_name))
             conn.commit()
             cur.close()
-            conn.close()
+            if conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
+                conn.close()
 
             self._set_headers(201)
             self.wfile.write(json.dumps({"status": "ok", "url": url}).encode('utf-8'))
@@ -166,6 +172,14 @@ class TaskHandler(BaseHTTPRequestHandler):
             print(f"--- ATTACHMENT UPLOAD FAILED: {e} ---")
             self._set_headers(500)
             self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+        finally:
+            try:
+                if 'cur' in locals() and cur:
+                    cur.close()
+                if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
+                    conn.close()
+            except Exception:
+                pass
 
     def handle_task_creation(self):
         # ... (implementation for creating a task)
@@ -238,13 +252,22 @@ class TaskHandler(BaseHTTPRequestHandler):
             cur.execute("SELECT * FROM tasks WHERE id=%s", (task_id,))
             updated_task = cur.fetchone()
             cur.close()
-            conn.close()
+            if conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
+                conn.close()
 
             self._set_headers(200)
             self.wfile.write(json.dumps(updated_task, default=str).encode("utf-8"))
         except Exception as e:
             self._set_headers(500)
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+        finally:
+            try:
+                if 'cur' in locals() and cur:
+                    cur.close()
+                if 'conn' in locals() and conn: # conn.is_connected() is not needed for pooled connections, just close it to return to pool
+                    conn.close()
+            except Exception:
+                pass
 
 def run(port=8082):
     server_address = ("", port)
