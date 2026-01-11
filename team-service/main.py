@@ -350,7 +350,8 @@ def run(port=8081):
             db_name = os.getenv("DB_NAME", "pms")
             
             cur.execute("SHOW COLUMNS FROM teams LIKE 'created_at'")
-            if not cur.fetchone():
+            column_exists = cur.fetchone() # Consume the result
+            if not column_exists:
                 cur.execute("ALTER TABLE teams ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
                 conn.commit()
                 print("team-service: added created_at column to teams")
