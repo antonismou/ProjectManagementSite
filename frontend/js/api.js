@@ -19,9 +19,9 @@ async function getTeamServiceUrl() { return `http://${EXTERNAL_IP}:8081`; }
 async function getTaskServiceUrl() { return `http://${EXTERNAL_IP}:8082`; }
 
 // Ρύθμιση URLs των microservices (προς το παρόν placeholders)
-const USER_SERVICE_URL = await getUserServiceUrl();
-const TEAM_SERVICE_URL = await getTeamServiceUrl();
-const TASK_SERVICE_URL = await getTaskServiceUrl();
+//const USER_SERVICE_URL = await getUserServiceUrl();
+//const TEAM_SERVICE_URL = await getTeamServiceUrl();
+//const TASK_SERVICE_URL = await getTaskServiceUrl();
 
 async function apiRequest(path, method = "GET", body = null, token = null) {
   const baseUrl = await getUserServiceUrl(); // Default to user service, or pass as param
