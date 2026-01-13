@@ -28,8 +28,8 @@ The entire stack is containerized. You can spin up the environment with a single
 
 1.  **Clone the repository** (if not already done):
     ```bash
-    git clone https://github.com/antonismou/PLH513
-    cd PLH513
+    git clone https://github.com/antonismou/ProjectManagementSite
+    cd ProjectManagementSite
     ```
 
 2.  **Build and Run** using Docker Compose:
